@@ -174,6 +174,10 @@ typedef struct EnHorse {
     u8 motoUnderwater; // the bike is submerged (drives on the bottom; mounting needs iron boots)
     u8 motoWaterGrace; // frames left in which the bike still follows the bottom after leaving the water
     s16 motoLean;      // roll into turns (binary angle; positive = leaning right), shared by bike and rider
+    s16 motoWheelie;   // front wheel lift (binary angle, pitch about the rear axle)
+    s16 motoFallen;    // after a crash: the side the bike lies on (+-0x4000 roll), 0 when upright
+    s16 motoFallenTimer; // frames until a fallen bike rights itself
+    u8 motoWallTouch;  // touching a wall last frame (crash rules run once per new contact)
 
 // MotoLink: underwater (and briefly after leaving the water, e.g. over a waterfall's lip) the bike follows the
 // bottom wherever it goes, ignoring the horse's refusal of drops, steep and horse-blocked floors.

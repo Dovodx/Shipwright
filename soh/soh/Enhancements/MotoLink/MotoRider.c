@@ -11,6 +11,7 @@
 #include "global.h"
 #include "soh/Enhancements/MotoLink/MotoLink.h"
 #include "overlays/actors/ovl_En_Horse/z_en_horse.h"
+#include "overlays/actors/ovl_En_Horse/z_en_horse_moto.h"
 #include "objects/gameplay_keep/gameplay_keep.h"
 #include "soh/ResourceManagerHelpers.h"
 
@@ -107,8 +108,8 @@ void MotoLink_RiderLimbOverride(PlayState* play, Player* player, s32 limbIndex, 
     bike = (EnHorse*)player->rideActor;
 
     if (limbIndex == PLAYER_LIMB_ROOT) {
-        // Link's origin sits on the ground line under the seat, so rolling here leans him with the bike.
-        Matrix_RotateZ(BINANG_TO_RAD(-bike->motoLean), MTXMODE_APPLY);
+        // Link's origin sits on the ground line under the seat, so tilting here leans him with the bike.
+        EnHorseMoto_ApplyRiderTilt(bike, player);
         return;
     }
     if (limbIndex == PLAYER_LIMB_UPPER) {

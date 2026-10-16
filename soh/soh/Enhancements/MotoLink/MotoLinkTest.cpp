@@ -175,8 +175,11 @@ void RunEvent(const TestEvent& ev) {
         }
         for (Actor* a = gPlayState->actorCtx.actorLists[ACTORCAT_BG].head; a != nullptr; a = a->next) {
             if (a->id == ACTOR_EN_HORSE) {
-                printf(" horse[type=%d pos=(%.0f,%.0f,%.0f) floor=%.0f uw=%d]", ((EnHorse*)a)->type, a->world.pos.x,
-                       a->world.pos.y, a->world.pos.z, a->floorHeight, ((EnHorse*)a)->motoUnderwater);
+                EnHorse* h = (EnHorse*)a;
+                printf(" horse[type=%d pos=(%.0f,%.0f,%.0f) floor=%.0f uw=%d v=%.1f lean=%d wheelie=%d fallen=%d wall=%d "
+                       "bg=0x%X]",
+                       h->type, a->world.pos.x, a->world.pos.y, a->world.pos.z, a->floorHeight, h->motoUnderwater,
+                       a->speedXZ, h->motoLean, h->motoWheelie, h->motoFallen, h->motoWallTouch, a->bgCheckFlags);
             }
         }
         printf("\n");

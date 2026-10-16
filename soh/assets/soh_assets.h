@@ -372,6 +372,19 @@ static const ALIGN_ASSET(2) char gHouseKeyDL[] = dgHouseKeyDL;
 #define dgGiRocsFeatherDL "__OTR__objects/object_rocs_feather/gGiRocsFeatherDL"
 static const ALIGN_ASSET(2) char gGiRocsFeatherDL[] = dgGiRocsFeatherDL;
 
+// MotoLink bike model
+#define dgMotoBikeChassisDL "__OTR__objects/object_motolink_bike/gMotoBikeChassisDL"
+static const ALIGN_ASSET(2) char gMotoBikeChassisDL[] = dgMotoBikeChassisDL;
+
+#define dgMotoBikeForkDL "__OTR__objects/object_motolink_bike/gMotoBikeForkDL"
+static const ALIGN_ASSET(2) char gMotoBikeForkDL[] = dgMotoBikeForkDL;
+
+#define dgMotoBikeWheelFrontDL "__OTR__objects/object_motolink_bike/gMotoBikeWheelFrontDL"
+static const ALIGN_ASSET(2) char gMotoBikeWheelFrontDL[] = dgMotoBikeWheelFrontDL;
+
+#define dgMotoBikeWheelRearDL "__OTR__objects/object_motolink_bike/gMotoBikeWheelRearDL"
+static const ALIGN_ASSET(2) char gMotoBikeWheelRearDL[] = dgMotoBikeWheelRearDL;
+
 // overlays
 #define dgOptionsDividerChangeLangVtx "__OTR__overlays/ovl_file_choose/gOptionsDividerChangeLangVtx"
 static const ALIGN_ASSET(2) char gOptionsDividerChangeLangVtx[] = dgOptionsDividerChangeLangVtx;

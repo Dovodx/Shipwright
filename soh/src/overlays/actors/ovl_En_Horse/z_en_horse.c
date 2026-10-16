@@ -3193,6 +3193,12 @@ void EnHorse_UpdateBgCheckInfo(EnHorse* this, PlayState* play) {
         return;
     }
 
+    // MotoLink: the bike has its own wall rules (crashes and scrapes) in place of Epona's slowdown
+    if (this->type == HORSE_MOTO) {
+        if (EnHorseMoto_CheckWallCrash(this, play)) {
+            return;
+        }
+    } else
     // void 0 trick required to match, but is surely not real. revisit at a later time
     if (this->actor.bgCheckFlags & 8 && Math_CosS(this->actor.wallYaw - ((void)0, this->actor.world).rot.y) < -0.3f) {
         if (this->actor.speedXZ > 4.0f) {
@@ -3256,6 +3262,9 @@ void EnHorse_UpdateBgCheckInfo(EnHorse* this, PlayState* play) {
             return;
         }
 
+        // MotoLink: the bike doesn't refuse walls the way Epona does; it rides into them (and may crash)
+        if (this->type == HORSE_MOTO) {
+        } else
         // too close to jump
         if ((movingFast == false && intersectDist < 80.0f) || (movingFast == true && intersectDist < 150.0f)) {
             if (movingFast == false) {
@@ -3268,7 +3277,7 @@ void EnHorse_UpdateBgCheckInfo(EnHorse* this, PlayState* play) {
         }
 
         dynaPoly = DynaPoly_GetActor(&play->colCtx, bgId);
-        if ((this->stateFlags & ENHORSE_FLAG_26) && ((dynaPoly && dynaPoly->actor.id != 0x108) || dynaPoly == 0)) {
+        if ((this->stateFlags & ENHORSE_FLAG_26) && this->type != HORSE_MOTO && ((dynaPoly && dynaPoly->actor.id != 0x108) || dynaPoly == 0)) {
             if (movingFast == false) {
                 this->stateFlags |= ENHORSE_FORCE_REVERSING;
             } else if (movingFast == true) {
@@ -3724,6 +3733,10 @@ s32 EnHorse_MountSideCheck(EnHorse* this, PlayState* play, Player* player) {
 
 s32 EnHorse_GetMountSide(EnHorse* this, PlayState* play) {
     if (this->action != ENHORSE_ACT_IDLE) {
+        return 0;
+    }
+    // MotoLink: a crashed bike has to right itself first
+    if (this->type == HORSE_MOTO && this->motoFallen != 0) {
         return 0;
     }
     // MotoLink: underwater, Link can only get on the bike while standing on the bottom in iron boots

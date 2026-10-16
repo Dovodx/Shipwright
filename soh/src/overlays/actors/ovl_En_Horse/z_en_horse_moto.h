@@ -21,5 +21,7 @@ void EnHorseMoto_UpdateRiderPos(EnHorse* this);
 void EnHorseMoto_Draw(EnHorse* this, PlayState* play);
 void EnHorseMoto_DrawTach(PlayState* play);
 void EnHorseMoto_AdjustView(PlayState* play);
+s32 EnHorseMoto_CheckWallCrash(EnHorse* this, PlayState* play);
+void EnHorseMoto_ApplyRiderTilt(EnHorse* this, Player* player);
 
 #endif
