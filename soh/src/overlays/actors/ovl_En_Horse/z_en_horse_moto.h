@@ -20,5 +20,6 @@ void EnHorseMoto_UpdateSpeed(EnHorse* this, PlayState* play, f32 decel);
 void EnHorseMoto_UpdateRiderPos(EnHorse* this);
 void EnHorseMoto_Draw(EnHorse* this, PlayState* play);
 void EnHorseMoto_DrawTach(PlayState* play);
+void EnHorseMoto_AdjustView(PlayState* play);
 
 #endif

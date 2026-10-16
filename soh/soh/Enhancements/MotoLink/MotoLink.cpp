@@ -16,6 +16,7 @@ extern PlayState* gPlayState;
 // From z_en_horse_moto.c (its header uses `this` as a parameter name, so it can't be included from C++)
 extern u8 gMotoRiding;
 void EnHorseMoto_DrawTach(PlayState* play);
+void EnHorseMoto_AdjustView(PlayState* play);
 }
 
 namespace {
@@ -88,6 +89,11 @@ void RegisterMotoLink() {
     REGISTER_VB_SHOULD(VB_DRAW_EPONA_BOOST_CARROTS, {
         if (gMotoRiding) {
             *should = false;
+        }
+    });
+    GameInteractor::Instance->RegisterGameHook<GameInteractor::OnPlayDrawBegin>([]() {
+        if (gPlayState != nullptr) {
+            EnHorseMoto_AdjustView(gPlayState);
         }
     });
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnPlayDrawEnd>([]() {

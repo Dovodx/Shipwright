@@ -173,6 +173,7 @@ typedef struct EnHorse {
     f32 motoDoppler;  // smoothed pitch factor for the engine as heard from the camera
     u8 motoUnderwater; // the bike is submerged (drives on the bottom; mounting needs iron boots)
     u8 motoWaterGrace; // frames left in which the bike still follows the bottom after leaving the water
+    s16 motoLean;      // roll into turns (binary angle; positive = leaning right), shared by bike and rider
 
 // MotoLink: underwater (and briefly after leaving the water, e.g. over a waterfall's lip) the bike follows the
 // bottom wherever it goes, ignoring the horse's refusal of drops, steep and horse-blocked floors.

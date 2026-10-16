@@ -5,6 +5,7 @@
 #include "objects/object_link_child/object_link_child.h"
 #include "overlays/actors/ovl_Demo_Effect/z_demo_effect.h"
 #include "overlays/actors/ovl_En_Horse/z_en_horse.h"
+#include "soh/Enhancements/MotoLink/MotoLink.h"
 
 #include <libultraship/bridge/resourcebridge.h>
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
@@ -1260,6 +1261,8 @@ void func_8008F87C(PlayState* play, Player* this, SkelAnime* skelAnime, Vec3f* p
 s32 Player_OverrideLimbDrawGameplayCommon(PlayState* play, s32 limbIndex, Gfx** dList, Vec3f* pos, Vec3s* rot,
                                           void* thisx) {
     Player* this = (Player*)thisx;
+
+    MotoLink_RiderLimbOverride(play, this, limbIndex, pos, rot); // MotoLink: bike riding pose
 
     if (CVarGetInteger(CVAR_ENHANCEMENT("EquipmentAlwaysVisible"), 0) &&
         CVarGetInteger(CVAR_ENHANCEMENT("ScaleAdultEquipmentAsChild"), 0) && LINK_IS_CHILD) {

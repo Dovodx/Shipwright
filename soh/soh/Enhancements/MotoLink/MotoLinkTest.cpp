@@ -15,6 +15,9 @@
 //   spawnactor <id> <params> <x> <y> <z> [yaw]  spawn any actor (accepts negative coordinates)
 //   ingorace                  act as if Ingo's race was just accepted (what En_In does on "yes"): race state 2,
 //                             reload Lon Lon Ranch with the race-start cutscene index
+//   sidecam <deg> <dist> <height> | off   view Link from a fixed angle relative to his facing (90 = his right),
+//                             e.g. "sidecam 90 120 30" for a side profile; follows him every frame
+//   joints                    print Link's current joint rotations (skelAnime jointTable, per limb)
 //   age <0|1>                 set Link's age (0 adult, 1 child) in the save context
 //   eponasong                 act as if Epona's Song was just played (calls Epona, runs song hooks)
 //   eventflag <hex>           set an eventChkInf flag (e.g. 0x69 raises Lake Hylia's water); reload to apply
@@ -63,6 +66,25 @@ std::vector<TestEvent> sEvents;
 size_t sNextEvent = 0;
 int sFrame = -1; // -1 until the first PlayState frame
 HeldInput sHeld;
+
+struct SideCam {
+    bool active = false;
+    s16 camId = -1;
+    f32 angleDeg = 90.0f, dist = 120.0f, height = 30.0f;
+} sSideCam;
+
+void UpdateSideCam() {
+    if (!sSideCam.active || gPlayState == nullptr) {
+        return;
+    }
+    Player* player = GET_PLAYER(gPlayState);
+    s16 yaw = player->actor.shape.rot.y + (s16)(sSideCam.angleDeg * (0x8000 / 180.0f));
+    Vec3f at = player->actor.world.pos;
+    at.y += 30.0f;
+    Vec3f eye = { at.x + Math_SinS(yaw) * sSideCam.dist, at.y + sSideCam.height - 30.0f,
+                  at.z + Math_CosS(yaw) * sSideCam.dist };
+    Play_CameraSetAtEye(gPlayState, sSideCam.camId, &at, &eye);
+}
 
 u16 ParseButtons(const std::string& list) {
     static const std::pair<const char*, u16> kNames[] = {
@@ -210,6 +232,35 @@ void RunEvent(const TestEvent& ev) {
         gSaveContext.nextCutsceneIndex = 0xFFF0;
         gPlayState->transitionType = TRANS_TYPE_FADE_BLACK;
         gPlayState->transitionTrigger = TRANS_TRIGGER_START;
+    } else if (cmd == "sidecam" && gPlayState != nullptr) {
+        if (a.size() > 1 && a[1] == "off") {
+            if (sSideCam.active) {
+                Play_ClearCamera(gPlayState, sSideCam.camId);
+                Play_ChangeCameraStatus(gPlayState, CAM_ID_MAIN, CAM_STAT_ACTIVE);
+            }
+            sSideCam.active = false;
+        } else {
+            if (!sSideCam.active) {
+                sSideCam.camId = Play_CreateSubCamera(gPlayState);
+                Play_ChangeCameraStatus(gPlayState, CAM_ID_MAIN, CAM_STAT_WAIT);
+                Play_ChangeCameraStatus(gPlayState, sSideCam.camId, CAM_STAT_ACTIVE);
+                sSideCam.active = true;
+            }
+            if (a.size() >= 4) {
+                sSideCam.angleDeg = std::stof(a[1]);
+                sSideCam.dist = std::stof(a[2]);
+                sSideCam.height = std::stof(a[3]);
+            }
+            UpdateSideCam();
+        }
+    } else if (cmd == "joints" && gPlayState != nullptr) {
+        Player* player = GET_PLAYER(gPlayState);
+        printf("motolink-test: @%d joints", sFrame);
+        for (int i = 0; i < PLAYER_LIMB_MAX; i++) {
+            Vec3s* j = &player->skelAnime.jointTable[i];
+            printf(" [%d:%d,%d,%d]", i, j->x, j->y, j->z);
+        }
+        printf("\n");
     } else if (cmd == "age" && a.size() > 1) {
         gSaveContext.linkAge = std::stoi(a[1]);
     } else if (cmd == "log") {
@@ -234,6 +285,7 @@ void OnFrame() {
     while (sNextEvent < sEvents.size() && sEvents[sNextEvent].frame <= sFrame) {
         RunEvent(sEvents[sNextEvent++]);
     }
+    UpdateSideCam();
 }
 
 void RegisterMotoLinkTest() {

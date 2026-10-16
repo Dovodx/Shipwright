@@ -28,7 +28,7 @@ Gfx* Gfx_TextureI8(Gfx* displayListHead, void* texture, s16 textureWidth, s16 te
 
 // Where the rider sits relative to the bike origin (bike space). EnHorse's riderPos is consumed by Player with
 // a fixed -27 Y adjustment that was tuned for Epona's saddle limb, so the offset is applied on top of the seat.
-#define MOTO_RIDER_Y (MOTO_SEAT_Y + 18)
+#define MOTO_RIDER_Y (MOTO_SEAT_Y + 3)
 
 typedef struct {
     s16 x0, y0, z0, x1, y1, z1;
@@ -168,6 +168,8 @@ f32 EnHorse_SlopeSpeedMultiplier(EnHorse* this, PlayState* play);
 s32 EnHorse_PlayerCanMove(EnHorse* this, PlayState* play);
 
 EnHorse* gMotoRiddenBike;
+
+static void EnHorseMoto_UpdateLean(EnHorse* this);
 
 // Engine model: Moto Racer's automatic-gearbox tachometer logic (re/NOTES.md "Engine and tachometer"), with
 // bike #2's redline. RPM is cosmetic, derived from speed as a fraction of top speed.
@@ -436,12 +438,32 @@ void EnHorseMoto_UpdateStick(EnHorse* this, PlayState* play) {
         gMotoRiddenBike = NULL;
     }
     EnHorseMoto_UpdateUnderwater(this, play);
+    EnHorseMoto_UpdateLean(this);
     if (this->playerControlled) {
         EnHorseMoto_CutGrass(this, play);
     }
     EnHorseMoto_UpdateEngine(this);
     EnHorseMoto_UpdateEngineAudio(this, play);
     MotoLink_TrackBike(play, &this->actor, this->playerControlled);
+}
+
+// Lean: bikes turn by leaning, so the bike (and Link with it) rolls into the turn by up to MOTO_LEAN_MAX, more the
+// faster it goes; at a standstill it rests tipped slightly onto Link's planted left foot.
+#define MOTO_LEAN_MAX DEGF_TO_BINANG(35.0f)
+#define MOTO_LEAN_FULL_SPEED 10.0f
+#define MOTO_LEAN_STOPPED DEGF_TO_BINANG(-8.0f)
+
+static void EnHorseMoto_UpdateLean(EnHorse* this) {
+    s16 target;
+
+    if (!this->playerControlled) {
+        target = 0;
+    } else if (this->actor.speedXZ < 0.5f) {
+        target = MOTO_LEAN_STOPPED;
+    } else {
+        target = (s16)(this->motoSteer * MOTO_LEAN_MAX * CLAMP(this->actor.speedXZ / MOTO_LEAN_FULL_SPEED, 0.0f, 1.0f));
+    }
+    this->motoLean += (s16)((target - this->motoLean) * 0.25f);
 }
 
 // Replaces EnHorse_UpdateSpeed's stick-driven speed and steering for every mounted gait.
@@ -471,12 +493,39 @@ void EnHorseMoto_UpdateSpeed(EnHorse* this, PlayState* play, f32 decel) {
     this->actor.shape.rot.y = this->actor.world.rot.y;
 }
 
+/*
+ * Bike camera, applied to the view just before drawing (the camera recomputes the view every frame, so this never
+ * accumulates): a wider field of view the faster the bike goes, and the eye brought in and lowered for a tighter,
+ * lower chase view than Epona's.
+ */
+#define MOTO_CAM_FOV_KICK 10.0f  // extra degrees at top speed
+#define MOTO_CAM_PULLBACK 0.8f   // eye distance multiplier (closer chase view than Epona's)
+#define MOTO_CAM_LOWER 6.0f      // eye lowered by this many units
+
+void EnHorseMoto_AdjustView(PlayState* play) {
+    EnHorse* bike = gMotoRiddenBike;
+    View* view = &play->view;
+    f32 speedFrac;
+
+    if (bike == NULL || !gMotoRiding || play->activeCamera != CAM_ID_MAIN) {
+        return;
+    }
+    speedFrac = CLAMP(bike->actor.speedXZ / MOTO_TOP_SPEED, 0.0f, 1.0f);
+    view->fovy += CVarGetFloat("gMotoLink.Camera.FovKick", MOTO_CAM_FOV_KICK) * speedFrac * speedFrac;
+    {
+        f32 pull = CVarGetFloat("gMotoLink.Camera.Pullback", MOTO_CAM_PULLBACK);
+        view->eye.x = view->lookAt.x + (view->eye.x - view->lookAt.x) * pull;
+        view->eye.z = view->lookAt.z + (view->eye.z - view->lookAt.z) * pull;
+        view->eye.y = view->lookAt.y + (view->eye.y - view->lookAt.y) * pull - CVarGetFloat("gMotoLink.Camera.Lower", MOTO_CAM_LOWER);
+    }
+}
+
 void EnHorseMoto_UpdateRiderPos(EnHorse* this) {
     f32 s = Math_SinS(this->actor.shape.rot.y);
     f32 c = Math_CosS(this->actor.shape.rot.y);
 
     this->riderPos.x = s * MOTO_SEAT_Z;
-    this->riderPos.y = MOTO_RIDER_Y;
+    this->riderPos.y = CVarGetFloat("gMotoLink.Pose.SeatY", MOTO_RIDER_Y);
     this->riderPos.z = c * MOTO_SEAT_Z;
 }
 
@@ -508,6 +557,7 @@ void EnHorseMoto_Draw(EnHorse* this, PlayState* play) {
 
     Matrix_SetTranslateRotateYXZ(this->actor.world.pos.x, this->actor.world.pos.y, this->actor.world.pos.z,
                                  &this->actor.shape.rot);
+    Matrix_RotateZ(BINANG_TO_RAD(-this->motoLean), MTXMODE_APPLY); // roll about the ground contact line
     gSPMatrix(POLY_OPA_DISP++, MATRIX_NEWMTX(play->state.gfxCtx), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
 
     gfx = POLY_OPA_DISP;

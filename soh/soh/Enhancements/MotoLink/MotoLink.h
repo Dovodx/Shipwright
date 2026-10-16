@@ -37,6 +37,8 @@ void MotoLink_GiveKeyFob(void);
 // Ingo's races (and the escape that follows) keep using the bike if the first race was accepted on it. Set by
 // En_In when the race is accepted; cleared when Link leaves Lon Lon Ranch.
 void MotoLink_SetRacingOnBike(bool racingOnBike);
+// Applies Link's bike riding pose to one limb (Player's limb-draw callback; MotoRider.c).
+void MotoLink_RiderLimbOverride(struct PlayState* play, struct Player* player, s32 limbIndex, Vec3f* pos, Vec3s* rot);
 // True while Link is riding the bike (rather than Epona or nothing).
 bool MotoLink_PlayerOnBike(struct PlayState* play);
 // For scripted spawns that put Link on "his horse" (race start/finish, the ranch escape): ENHORSE_PARAM_MOTO if
