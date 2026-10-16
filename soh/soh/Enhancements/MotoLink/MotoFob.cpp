@@ -42,8 +42,8 @@ void SyncFobSlot() {
 
 void UseKeyFob() {
     PlayState* play = gPlayState;
-    // Same places Epona can be called (Hyrule Field, Lake Hylia, Gerudo Valley/Fortress, Lon Lon Ranch).
-    if (play == nullptr || !Horse_CanSpawn(play->sceneNum) || !MotoLink_SummonBike(play)) {
+    // Anywhere, unlike Epona (who only comes to Hyrule Field, Lake Hylia, Gerudo Valley/Fortress and the ranch).
+    if (play == nullptr || !MotoLink_SummonBike(play)) {
         Sfx_PlaySfxCentered(NA_SE_SY_ERROR);
         return;
     }

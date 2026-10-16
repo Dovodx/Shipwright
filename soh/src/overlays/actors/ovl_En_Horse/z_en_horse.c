@@ -1485,6 +1485,11 @@ void EnHorse_MountedRearing(EnHorse* this, PlayState* play) {
 }
 
 void EnHorse_StartBraking(EnHorse* this, PlayState* play) {
+    // MotoLink: the bike never skids to a stop by itself (Epona does at cliffs and walls she won't jump)
+    if (this->type == HORSE_MOTO) {
+        this->stateFlags &= ~ENHORSE_FORCE_REVERSING;
+        return;
+    }
     this->action = ENHORSE_ACT_STOPPING;
     this->animationIdx = ENHORSE_ANIM_STOPPING;
 
@@ -2939,6 +2944,11 @@ s32 EnHorse_CalcFloorHeight(EnHorse* this, PlayState* play, Vec3f* pos, Collisio
  *  5: Obstructed behind
  */
 void EnHorse_ObstructMovement(EnHorse* this, PlayState* play, s32 obstacleType, s32 galloping) {
+    // MotoLink: nothing turns the bike back (water, drops, slopes, blocked ground): it goes wherever its own
+    // physics take it, off ledges included
+    if (this->type == HORSE_MOTO) {
+        return;
+    }
     if (this->action == ENHORSE_ACT_CS_UPDATE || EnHorse_BgCheckBridgeJumpPoint(this, play)) {
         return;
     }

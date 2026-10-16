@@ -176,8 +176,10 @@ void RunEvent(const TestEvent& ev) {
     } else if (cmd == "probe" && gPlayState != nullptr) {
         Player* player = GET_PLAYER(gPlayState);
         Actor* ride = player->rideActor;
-        printf("motolink-test: @%d probe link=(%.0f,%.0f,%.0f) riding=%d age=%d childTradeSlot=0x%02X", sFrame,
-               player->actor.world.pos.x, player->actor.world.pos.y, player->actor.world.pos.z, ride != nullptr,
+        printf("motolink-test: @%d probe link=(%.0f,%.0f,%.0f) linkYaw=0x%04X scene=0x%02X riding=%d age=%d "
+               "childTradeSlot=0x%02X",
+               sFrame, player->actor.world.pos.x, player->actor.world.pos.y, player->actor.world.pos.z,
+               (u16)player->actor.shape.rot.y, gPlayState->sceneNum, ride != nullptr,
                gSaveContext.linkAge, gSaveContext.inventory.items[SLOT_TRADE_CHILD]);
         printf(" rupees=%d health=%d", gSaveContext.rupees, gSaveContext.health);
         printf(" water=%.0f sf1=0x%08X sf2=0x%08X uwTimer=%d timerState=%d timer=%d boots=%d", player->actor.yDistToWater,
@@ -279,6 +281,19 @@ void RunEvent(const TestEvent& ev) {
             printf(" [%d:%d,%d,%d]", i, j->x, j->y, j->z);
         }
         printf("\n");
+    } else if (cmd == "floorat" && a.size() >= 3 && gPlayState != nullptr) {
+        // Floor heights straight down from y=2000 at x z, then along a direction: floorat <x> <z> [yaw step n]
+        f32 x = std::stof(a[1]), z = std::stof(a[2]);
+        s16 yaw = a.size() > 3 ? (s16)std::stoi(a[3], nullptr, 0) : 0;
+        f32 step = a.size() > 4 ? std::stof(a[4]) : 0.0f;
+        int n = a.size() > 5 ? std::stoi(a[5]) : 1;
+        for (int i = 0; i < n; i++) {
+            Vec3f p = { x + Math_SinS(yaw) * step * i, 2000.0f, z + Math_CosS(yaw) * step * i };
+            CollisionPoly* poly;
+            s32 bgId;
+            f32 y = BgCheck_EntityRaycastFloor3(&gPlayState->colCtx, &poly, &bgId, &p);
+            printf("motolink-test: floorat (%.0f,%.0f) y=%.0f\n", p.x, p.z, y);
+        }
     } else if (cmd == "daytime" && a.size() > 1) {
         gSaveContext.dayTime = (u16)std::stoi(a[1], nullptr, 0); // e.g. 0x8000 = noon (no Stalchildren)
     } else if (cmd == "fencefind" && gPlayState != nullptr) {

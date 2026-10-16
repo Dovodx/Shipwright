@@ -147,6 +147,20 @@ extern "C" void MotoLink_SetRacingOnBike(bool racingOnBike) {
     sRacingOnBike = racingOnBike;
 }
 
+// The bike reuses Epona's (undrawn) skeleton, whose object only Epona's scenes load. SoH finds resources by name,
+// so the bike can spawn without it - including while a scene loads (riding in through an exit), which SoH
+// otherwise refuses for actors whose object is missing.
+static void AllowBikeWithoutHorseObject() {
+    REGISTER_VB_SHOULD(VB_SPAWN_ACTOR_WITHOUT_OBJECT, {
+        int16_t actorId = va_arg(args, int);
+        if (actorId == ACTOR_EN_HORSE) {
+            *should = true;
+        }
+    });
+}
+
+static RegisterShipInitFunc initBikeAnywhere(AllowBikeWithoutHorseObject);
+
 extern "C" bool MotoLink_SetupArrivingOnBike(PlayState* play, Player* player) {
     if (AREG(6) == 0 || !gMotoSave.ridingBike) {
         return false;

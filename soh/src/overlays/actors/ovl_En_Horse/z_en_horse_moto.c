@@ -21,7 +21,7 @@ Gfx* Gfx_TextureI8(Gfx* displayListHead, void* texture, s16 textureWidth, s16 te
 
 // Bike geometry in bike space (world units): +Z forward, +Y up, origin on the ground between the wheel contact
 // points. Must match the generated model (assets/bike/bike_spec.json, built by tools/bike/build_bike.py).
-#define MOTO_WHEEL_RADIUS 9
+#define MOTO_WHEEL_RADIUS 10.5f
 #define MOTO_WHEEL_MAX_SPIN DEG_TO_RAD(75.0f) // radians per game frame
 #define MOTO_FRONT_WHEEL_Z 22
 #define MOTO_REAR_WHEEL_Z -22
@@ -29,7 +29,7 @@ Gfx* Gfx_TextureI8(Gfx* displayListHead, void* texture, s16 textureWidth, s16 te
 #define MOTO_SEAT_Z -7
 // Steering head: the fork part's origin, and the rake of the steering axis.
 #define MOTO_STEER_PIVOT_Y 32.0f
-#define MOTO_STEER_PIVOT_Z 11.27f
+#define MOTO_STEER_PIVOT_Z 11.97f
 #define MOTO_RAKE DEG_TO_RAD(25.0f)
 #define MOTO_MAX_STEER DEG_TO_RAD(20.0f) // bars turn with the stick, less as speed builds
 // Collision cylinders (bike space): the bike spans z -31..31.8, x +-11.4 at the mirrors (bodywork +-9), and the
@@ -53,6 +53,7 @@ u8 gMotoRiding;
 // of Moto Racer's bike #2 (strong acceleration that tails off; see re/NOTES.md "Engine drive-force curve").
 #define MOTO_ACCEL 0.384f
 #define MOTO_DRAG MOTO_ACCEL // equal to MOTO_ACCEL so full throttle balances exactly at top speed
+#define MOTO_WHEELIE_TOP_FACTOR 1.4142f // sqrt(2): balance speed with the wheelie's doubled drive force
 #define MOTO_ENGINE_BRAKE 0.08f
 #define MOTO_BRAKE_DECEL 0.9f
 // Turn rate (binary angle units/frame) at a standstill-ish crawl and at top speed; bikes turn by leaning, so the
@@ -263,23 +264,15 @@ static void EnHorseMoto_UpdateUnderwater(EnHorse* this, PlayState* play) {
 /*
  * Grass: riding through grass and bushes cuts them, as a sword swing would, without slowing the bike or affecting
  * its handling. Grass is cut a little before the bike reaches it (further ahead the faster it goes), so its push
- * collider never gets to shove the bike, and whatever it drops is pulled straight to Link to be collected.
+ * collider never gets to shove the bike. Whatever it drops is collected by riding over it, as on Epona.
  */
 #define MOTO_GRASS_REACH 35.0f    // cut radius around the bike at a standstill
 #define MOTO_GRASS_LOOKAHEAD 2.0f // plus this many frames of travel
-#define MOTO_DROP_RANGE 80.0f     // items this close to a fresh cut are the cut's drops
-#define MOTO_DROP_WINDOW 40       // frames after a cut during which its drops are collected
-#define MOTO_MAX_CUTS 8
-
-static Vec3f sMotoCutPos[MOTO_MAX_CUTS];
-static u32 sMotoCutFrame[MOTO_MAX_CUTS];
-static s32 sMotoNextCut;
 
 static void EnHorseMoto_CutGrass(EnHorse* this, PlayState* play) {
     f32 reach = MOTO_GRASS_REACH + this->actor.speedXZ * MOTO_GRASS_LOOKAHEAD;
     Vec3f ahead = this->actor.world.pos;
     Actor* actor;
-    s32 i;
 
     // Centre the reach ahead of the bike so grass is caught before the wheels arrive.
     ahead.x += Math_SinS(this->actor.world.rot.y) * this->actor.speedXZ * MOTO_GRASS_LOOKAHEAD * 0.5f;
@@ -295,29 +288,6 @@ static void EnHorseMoto_CutGrass(EnHorse* this, PlayState* play) {
         }
         grass->collider.base.acFlags |= AC_HIT; // En_Kusa cuts itself (and drops its item) on its next update
         grass->collider.base.ocFlags1 &= ~OC1_ON; // and no longer pushes the bike in the meantime
-        sMotoCutPos[sMotoNextCut] = actor->world.pos;
-        sMotoCutFrame[sMotoNextCut] = play->gameplayFrames;
-        sMotoNextCut = (sMotoNextCut + 1) % MOTO_MAX_CUTS;
-    }
-
-    // Pull fresh drops from cut grass to Link (riding past, he'd otherwise leave them far behind).
-    for (actor = play->actorCtx.actorLists[ACTORCAT_MISC].head; actor != NULL; actor = actor->next) {
-        if (actor->id != ACTOR_EN_ITEM00 || actor->update == NULL) {
-            continue;
-        }
-        for (i = 0; i < MOTO_MAX_CUTS; i++) {
-            if (sMotoCutFrame[i] != 0 && play->gameplayFrames - sMotoCutFrame[i] < MOTO_DROP_WINDOW &&
-                Math_Vec3f_DistXZ(&sMotoCutPos[i], &actor->home.pos) < MOTO_DROP_RANGE) {
-                Player* player = GET_PLAYER(play);
-
-                // Placed on Link with its pop-up bounce cancelled, it is picked up on its own update this frame.
-                actor->world.pos = player->actor.world.pos;
-                actor->velocity.x = actor->velocity.y = actor->velocity.z = 0.0f;
-                actor->speedXZ = 0.0f;
-                ((EnItem00*)actor)->unk_154 = 0; // no pickup delay
-                break;
-            }
-        }
     }
 }
 
@@ -349,6 +319,7 @@ void EnHorseMoto_UpdateStick(EnHorse* this, PlayState* play) {
     f32 stickX = play->state.input[0].rel.stick_x * (CVarGetInteger(CVAR_ENHANCEMENT("MirroredWorld"), 0) ? -1 : 1);
 
     this->motoSteer = CLAMP(stickX / 60.0f, -1.0f, 1.0f);
+    this->stateFlags &= ~(ENHORSE_FORCE_REVERSING | ENHORSE_FORCE_WALKING); // Epona's refusals (see EnHorse_ObstructMovement)
     this->lastStick = this->curStick;
     this->curStick.x = 0.0f;
     this->curStick.y = gMotoThrottle * 60.0f;
@@ -419,7 +390,9 @@ void EnHorseMoto_UpdateSpeed(EnHorse* this, PlayState* play, f32 decel) {
         v -= MOTO_ENGINE_BRAKE;
     }
     v -= gMotoBrake * MOTO_BRAKE_DECEL;
-    this->actor.speedXZ = CLAMP(v, 0.0f, top);
+    // Drag balances full throttle at `top`; a wheelie doubles the drive force, which (as in Moto Racer) raises the
+    // balance point to sqrt(2) * top. Above `top` without the wheelie, drag alone brings the speed back down.
+    this->actor.speedXZ = CLAMP(v, 0.0f, top * MOTO_WHEELIE_TOP_FACTOR);
 
     turnRate = MOTO_TURN_SLOW + (MOTO_TURN_FAST - MOTO_TURN_SLOW) * (this->actor.speedXZ / MOTO_TOP_SPEED);
     turnRate *= CLAMP(this->actor.speedXZ / MOTO_TURN_MIN_SPEED, 0.0f, 1.0f);
@@ -441,13 +414,14 @@ void EnHorseMoto_UpdateSpeed(EnHorse* this, PlayState* play, f32 decel) {
  * standing still: a hard hit (above 90 km/h, or any hit in a wheelie) crashes 25% of the time, otherwise it is a
  * bump that costs 10% of speed. The dice roll once per new contact, and their chance is a CVar.
  *
- * Crashing throws Link off along the bike's momentum (its heading) plus 0.6 up through Player's own large
- * knockback, so he lands and gets up as from any big hit (a quarter heart of damage); the bike falls onto the side it was leaning to and
+ * Crashing throws Link off along the bike's momentum (its heading and speed) plus an upward kick, through Player's
+ * own large knockback, so he lands and gets up as from any big hit (a quarter heart of damage); the bike falls onto the side it was leaning to and
  * lies there idling until it rights itself. It is not respawned anywhere: Link walks back or uses the fob.
  */
 #define MOTO_KMH(kmh) ((kmh) * MOTO_UNITS_PER_KMH)
 #define MOTO_CRASH_CHANCE 25         // percent, for Moto Racer's "rand & 3" rolls
-#define MOTO_FLING_SCALE 0.6f        // Link's launch speed per unit of bike speed (Moto Racer: 1.0)
+#define MOTO_FLING_SCALE 1.0f        // Link keeps the bike's speed...
+#define MOTO_FLING_UP 0.35f          // ...and is thrown up at this fraction of it
 #define MOTO_CRASH_DAMAGE 4          // health units (16 per heart)
 #define MOTO_FALLEN_FRAMES 70        // the bike lies on its side for 3.5 s, then rights itself
 #define MOTO_WALL_TOUCH_BG 1
@@ -470,6 +444,7 @@ static void EnHorseMoto_Crash(EnHorse* this, PlayState* play) {
     Player* player = GET_PLAYER(play);
     f32 speed = this->actor.speedXZ;
     f32 fling = speed * CVarGetFloat("gMotoLink.Crash.Fling", MOTO_FLING_SCALE);
+    f32 up = speed * CVarGetFloat("gMotoLink.Crash.FlingUp", MOTO_FLING_UP);
 
     // Off the bike, the same way Player's dismount ends (Player_Action_8084D3E4), but mid-ride.
     this->actor.child = NULL;
@@ -478,9 +453,9 @@ static void EnHorseMoto_Crash(EnHorse* this, PlayState* play) {
     AREG(6) = 0;
     Camera_RequestSetting(Play_GetCamera(play, CAM_ID_MAIN), CAM_SET_NORMAL0);
 
-    // Launch along the bike's momentum + 0.6 up, normalised: 0.857 of the speed forwards, 0.514 upwards. Player
-    // picks the knockback up on its own update this frame (it runs after the bike's) now that Link has no parent.
-    Actor_SetPlayerKnockbackLarge(play, &this->actor, fling * 0.857f, this->actor.world.rot.y, fling * 0.514f,
+    // Launch along the bike's momentum, keeping its speed, with an upward kick. Player picks the knockback up on its
+    // own update this frame (it runs after the bike's) now that Link has no parent.
+    Actor_SetPlayerKnockbackLarge(play, &this->actor, fling, this->actor.world.rot.y, up,
                                   speed > MOTO_KMH(20.0f) ? MOTO_CRASH_DAMAGE : 0);
 
     // The bike drops onto the side it leant to (either side when upright) and stops dead.

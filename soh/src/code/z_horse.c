@@ -269,7 +269,10 @@ void Horse_InitPlayerHorse(PlayState* play, Player* player) {
             Horse_ResetHorseData(play);
         }
 
-        if (Horse_CanSpawn(play->sceneNum)) {
+        // MotoLink: the bike goes anywhere; riding it in through an exit brings it into any scene
+        if (!Horse_CanSpawn(play->sceneNum)) {
+            MotoLink_SetupArrivingOnBike(play, player);
+        } else if (Horse_CanSpawn(play->sceneNum)) {
             if ((gSaveContext.sceneLayer > 3) ||
                 ((gSaveContext.entranceIndex == ENTR_HYRULE_FIELD_11 ||
                   gSaveContext.entranceIndex == ENTR_HYRULE_FIELD_12 ||
