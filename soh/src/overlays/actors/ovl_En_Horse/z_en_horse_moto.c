@@ -31,7 +31,8 @@ Gfx* Gfx_TextureI8(Gfx* displayListHead, void* texture, s16 textureWidth, s16 te
 #define MOTO_STEER_PIVOT_Z 11.27f
 #define MOTO_RAKE DEG_TO_RAD(25.0f)
 #define MOTO_MAX_STEER DEG_TO_RAD(20.0f) // bars turn with the stick, less as speed builds
-// Collision cylinders (bike space): the bike spans z -31.5..31.8, x +-10, and the rider's head is at ~51.
+// Collision cylinders (bike space): the bike spans z -31..31.8, x +-11.4 at the mirrors (bodywork +-9), and the
+// rider's head is at ~51.
 #define MOTO_COLLIDER_RADIUS 14
 #define MOTO_COLLIDER_HEIGHT 52
 #define MOTO_COLLIDER_FRONT_Z 16.0f
@@ -197,7 +198,7 @@ static void EnHorseMoto_UpdateEngineAudio(EnHorse* this, PlayState* play) {
 // Water above the bike's seat counts as submerged.
 #define MOTO_SUBMERGED_DEPTH 30.0f
 // Exhaust outlet in bike space (left side, rear), where underwater bubbles come from.
-static const Vec3f sMotoExhaust = { -6.1f, 19.75f, -25.4f };
+static const Vec3f sMotoExhaust = { -7.3f, 19.75f, -25.4f };
 
 // Underwater: the bike drives along the bottom like on land (no buoyancy or drag). While Link rides it, the bike
 // does the part of Player's water handling that riding skips: his depth, the underwater timer the air meter runs on

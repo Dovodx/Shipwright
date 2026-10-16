@@ -32,14 +32,14 @@ static const RiderJoint sBikePose[] = {
     { PLAYER_LIMB_WAIST, -21951, -614, -14838 },
     { PLAYER_LIMB_UPPER, 16408, -6423, 16342 }, // leaning forward over the tank
     { PLAYER_LIMB_R_THIGH, 7651, 8372, 136 },
-    { PLAYER_LIMB_R_SHIN, 0, 0, 17136 },
-    { PLAYER_LIMB_R_FOOT, 3568, -2495, -26068 }, // toes forward, sole on the peg
-    { PLAYER_LIMB_L_THIGH, 3304, 492, -6616 },
-    { PLAYER_LIMB_L_SHIN, 0, 0, 17776 },
-    { PLAYER_LIMB_L_FOOT, -2298, 1155, -24856 },
+    { PLAYER_LIMB_R_SHIN, 0, 0, 17072 },
+    { PLAYER_LIMB_R_FOOT, 3568, -2495, -26004 }, // toes forward, sole on the peg
+    { PLAYER_LIMB_L_THIGH, 3112, 492, -6616 },
+    { PLAYER_LIMB_L_SHIN, 0, 0, 17712 },
+    { PLAYER_LIMB_L_FOOT, -2170, 1283, -24760 },
     // Arms reaching for the grips (Epona's riding animation holds reins low and to one side).
     { PLAYER_LIMB_L_SHOULDER, 15827, -2922, 20143 },
-    { PLAYER_LIMB_L_FOREARM, 10420, -2432, -6402 },
+    { PLAYER_LIMB_L_FOREARM, 10420, -2432, -6914 },
     { PLAYER_LIMB_L_HAND, 3835, -7257, -22468 },
     { PLAYER_LIMB_R_SHOULDER, 1818, 29872, -14383 },
     { PLAYER_LIMB_R_FOREARM, 1803, 5720, -2295 },

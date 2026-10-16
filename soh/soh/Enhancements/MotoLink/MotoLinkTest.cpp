@@ -492,12 +492,12 @@ void FitStart(const std::string& stage) {
                                { { PLAYER_LIMB_R_THIGH, 'x' }, { PLAYER_LIMB_R_THIGH, 'y' }, { PLAYER_LIMB_R_THIGH, 'z' },
                                  { PLAYER_LIMB_R_SHIN, 'z' } },
                                ReachScore(PLAYER_BODYPART_R_FOOT, { -6.5f, 15.0f, -12.5f }, PLAYER_BODYPART_R_SHIN,
-                                          { -7.5f, 24.0f, 1.0f }, 0.3f) });
+                                          { -9.0f, 24.0f, 1.0f }, 0.3f) });
         sFitChains.push_back({ "lLeg",
                                { { PLAYER_LIMB_L_THIGH, 'x' }, { PLAYER_LIMB_L_THIGH, 'y' }, { PLAYER_LIMB_L_THIGH, 'z' },
                                  { PLAYER_LIMB_L_SHIN, 'z' } },
                                ReachScore(PLAYER_BODYPART_L_FOOT, { 6.5f, 15.0f, -12.5f }, PLAYER_BODYPART_L_SHIN,
-                                          { 7.5f, 24.0f, 1.0f }, 0.3f) });
+                                          { 9.0f, 24.0f, 1.0f }, 0.3f) });
     }
     for (auto& c : sFitChains) {
         if (tuck) {
