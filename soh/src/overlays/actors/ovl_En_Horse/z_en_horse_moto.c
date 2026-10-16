@@ -77,6 +77,7 @@ static void EnHorseMoto_CheckActorCrash(EnHorse* this, PlayState* play);
 #define MOTO_REDLINE 12500.0f
 #define MOTO_IDLE_RPM 800.0f
 #define MOTO_NUM_GEARS 6
+#define MOTO_AIR_REV 0.75f // share of the way to the redline the engine revs when the rear wheel leaves the ground
 static const f32 sMotoGearUpshift[MOTO_NUM_GEARS - 1] = { 0.18f, 0.33f, 0.48f, 0.62f, 0.74f };
 static const f32 sMotoGearTopFrac[MOTO_NUM_GEARS] = { 0.23f, 0.38f, 0.53f, 0.67f, 0.79f, 1.0f };
 
@@ -320,6 +321,11 @@ static void EnHorseMoto_UpdateEngine(EnHorse* this) {
         target = CLAMP(frac / sMotoGearTopFrac[gear - 1], 0.0f, 1.0f) * MOTO_REDLINE;
         target = MAX(target, MOTO_IDLE_RPM);
     }
+    // In the air the rear wheel spins free: on the throttle the engine revs up towards the redline (and drops back
+    // when the wheel touches down again).
+    if ((this->stateFlags & ENHORSE_JUMPING) || !(this->actor.bgCheckFlags & BGCHECKFLAG_GROUND)) {
+        target += (MOTO_REDLINE - target) * throttle * MOTO_AIR_REV;
+    }
     this->motoRpm += (target - this->motoRpm) * 0.35f;
 }
 
@@ -372,6 +378,8 @@ static void EnHorseMoto_UpdateLean(EnHorse* this) {
 
     if (this->motoFallen != 0) {
         return; // EnHorseMoto_UpdateFallen drives it
+    } else if (CVarGetInteger("gMotoLink.Debug.LeanPin", 0)) {
+        target = DEGF_TO_BINANG((f32)CVarGetInteger("gMotoLink.Debug.LeanDeg", 35)); // pose tuning: pinned lean
     } else if (!this->playerControlled) {
         target = 0;
     } else if (this->actor.speedXZ < 0.5f) {
@@ -628,8 +636,11 @@ void EnHorseMoto_ApplyRiderTilt(EnHorse* this, Player* player) {
     f32 axleZ = (MOTO_REAR_WHEEL_Z - MOTO_SEAT_Z) * toModel;
     f32 midZ = -MOTO_SEAT_Z * toModel;
 
+    f32 groundY = -(this->riderPos.y - 27.0f) * toModel; // the bike's ground line, which it rolls about
+
+    Matrix_Translate(0.0f, groundY, 0.0f, MTXMODE_APPLY);
     Matrix_RotateZ(BINANG_TO_RAD(this->motoLean), MTXMODE_APPLY);
-    Matrix_Translate(0.0f, axleY, axleZ, MTXMODE_APPLY);
+    Matrix_Translate(0.0f, axleY - groundY, axleZ, MTXMODE_APPLY);
     Matrix_RotateX(BINANG_TO_RAD(-this->motoWheelie), MTXMODE_APPLY);
     Matrix_Translate(0.0f, 0.0f, midZ - axleZ, MTXMODE_APPLY);
     Matrix_RotateX(BINANG_TO_RAD(-this->motoPitch), MTXMODE_APPLY);
@@ -638,29 +649,38 @@ void EnHorseMoto_ApplyRiderTilt(EnHorse* this, Player* player) {
 
 /*
  * Fence jumps. Epona's jumps replay her leap animation (fixed speed, height from her skeleton); the bike's are
- * ballistic instead: it keeps its speed, takes off with just enough upward speed to clear the fence it saw (by
- * MOTO_JUMP_CLEARANCE, measured where the fence is), flies under gravity and lands wherever the ground is, which
+ * ballistic instead: it keeps its speed, takes off so that its arc peaks just over the fence it saw (by
+ * MOTO_JUMP_CLEARANCE), flies under gravity and lands wherever the ground is, which
  * may be well below (fences with a drop behind them). In the air the nose follows the flight path.
  */
 #define MOTO_JUMP_GRAVITY 3.5f       // Epona's
-#define MOTO_JUMP_CLEARANCE 15.0f
+#define MOTO_JUMP_CLEARANCE 10.0f
+#define MOTO_JUMP_NOSE 30.0f // centre to front wheel
 #define MOTO_JUMP_MIN_SPEED 10.0f
-#define MOTO_JUMP_LEAD_FRAMES 4.0f     // take off this many frames before the fence...
-#define MOTO_JUMP_LEAD_MIN_DIST 50.0f  // ...but no closer than this (the bike's wall contact reaches 35)
+#define MOTO_JUMP_LEAD_MIN_DIST 50.0f  // take off no closer than this (the bike's wall contact reaches 35)
 #define MOTO_JUMP_PITCH_MAX DEGF_TO_BINANG(25.0f)
 
-// Called each frame a jumpable fence is in sight. The bike keeps riding until the fence is MOTO_JUMP_LEAD_FRAMES
-// away, then takes off (returns true) with the launch speed that clears it.
+// Called each frame a jumpable fence is in sight. The lowest jump that clears a fence peaks just over it, so the
+// bike keeps riding until it is the time-to-peak of that jump away (further for taller fences and higher speeds),
+// then takes off (returns true). If the fence is already closer, it takes off at once with the steeper jump needed.
 s32 EnHorseMoto_PrepareJump(EnHorse* this, f32 obstacleDist, f32 obstacleHeight) {
-    f32 v = MAX(this->actor.speedXZ, MOTO_JUMP_MIN_SPEED);
+    // Actors move velocity * R_UPDATE_RATE / 2 per frame (1.5x at 20 Hz): plan in actual distances.
+    f32 move = R_UPDATE_RATE * 0.5f;
+    f32 v = MAX(this->actor.speedXZ, MOTO_JUMP_MIN_SPEED) * move; // ground covered per frame
+    f32 rise = obstacleHeight + MOTO_JUMP_CLEARANCE;
+    f32 vyPeak = sqrtf(2.0f * MOTO_JUMP_GRAVITY * rise / move); // peaks at exactly `rise`
+    // The front wheel reaches the fence MOTO_JUMP_NOSE before the bike's centre does, and must already be above it
+    // (otherwise the bike's ground check lifts it onto the fence top, an extra kick): plan the arc's peak for the
+    // fence's near side, measured from the nose.
+    f32 lead = MAX(v * vyPeak / MOTO_JUMP_GRAVITY, MOTO_JUMP_LEAD_MIN_DIST) + MOTO_JUMP_NOSE;
     f32 t;
 
-    if (obstacleDist > MAX(v * MOTO_JUMP_LEAD_FRAMES, MOTO_JUMP_LEAD_MIN_DIST)) {
+    if (obstacleDist > lead) {
         return false;
     }
-    t = MAX(obstacleDist / v, 2.0f); // frames until the bike is over the fence
-    // Height at time t: vy t - g t^2 / 2 = obstacle + clearance
-    this->motoJumpVy = CLAMP((obstacleHeight + MOTO_JUMP_CLEARANCE) / t + 0.5f * MOTO_JUMP_GRAVITY * t, 8.0f, 40.0f);
+    t = MAX((obstacleDist - MOTO_JUMP_NOSE) / v, 2.0f); // frames until the front wheel is over the fence
+    // Height at time t: move * (vy t - g t^2 / 2) = rise (no less than the peaking jump)
+    this->motoJumpVy = CLAMP(MAX(rise / (move * t) + 0.5f * MOTO_JUMP_GRAVITY * t, vyPeak), 6.0f, 40.0f);
     return true;
 }
 
@@ -857,6 +877,9 @@ void EnHorseMoto_Draw(EnHorse* this, PlayState* play) {
 #define TACH_MPH_PER_UNIT (1.0f / (MOTO_UNITS_PER_KMH * 1.609344f))
 
 #define TACH_MAX_VTX 512
+// Vertices are stored at this many times HUD resolution (and scaled back by the modelview matrix), so the thin
+// needle and ticks keep their shape at high window resolutions instead of snapping to 320x240 pixels.
+#define TACH_SUBPIXEL 8.0f
 
 typedef struct {
     Vtx* vtx;
@@ -888,9 +911,9 @@ static void Tach_Tri(TachBuilder* b, f32 x0, f32 y0, f32 x1, f32 y1, f32 x2, f32
         return;
     }
     v = &b->vtx[b->count];
-    EnHorseMoto_SetVtx(&v[0], (s16)x0, (s16)y0, 0, r, g, bl);
-    EnHorseMoto_SetVtx(&v[1], (s16)x1, (s16)y1, 0, r, g, bl);
-    EnHorseMoto_SetVtx(&v[2], (s16)x2, (s16)y2, 0, r, g, bl);
+    EnHorseMoto_SetVtx(&v[0], (s16)(x0 * TACH_SUBPIXEL), (s16)(y0 * TACH_SUBPIXEL), 0, r, g, bl);
+    EnHorseMoto_SetVtx(&v[1], (s16)(x1 * TACH_SUBPIXEL), (s16)(y1 * TACH_SUBPIXEL), 0, r, g, bl);
+    EnHorseMoto_SetVtx(&v[2], (s16)(x2 * TACH_SUBPIXEL), (s16)(y2 * TACH_SUBPIXEL), 0, r, g, bl);
     v[0].v.cn[3] = v[1].v.cn[3] = v[2].v.cn[3] = a;
     gSPVertex((*b->gfx)++, v, 3, 0);
     gSP1Triangle((*b->gfx)++, 0, 1, 2, 0);
@@ -935,6 +958,7 @@ void EnHorseMoto_DrawTach(PlayState* play) {
     GraphicsContext* gfxCtx = play->state.gfxCtx;
     TachBuilder b;
     Mtx* proj;
+    Mtx* subpixel;
     f32 centerX;
     s32 i;
     s16 alpha = play->interfaceCtx.aAlpha;
@@ -956,7 +980,9 @@ void EnHorseMoto_DrawTach(PlayState* play) {
 
     gDPPipeSync(OVERLAY_DISP++);
     gSPMatrix(OVERLAY_DISP++, proj, G_MTX_PROJECTION | G_MTX_LOAD | G_MTX_NOPUSH);
-    gSPMatrix(OVERLAY_DISP++, &gMtxClear, G_MTX_MODELVIEW | G_MTX_LOAD | G_MTX_NOPUSH);
+    subpixel = Graph_Alloc(gfxCtx, sizeof(Mtx));
+    guScale(subpixel, 1.0f / TACH_SUBPIXEL, 1.0f / TACH_SUBPIXEL, 1.0f);
+    gSPMatrix(OVERLAY_DISP++, subpixel, G_MTX_MODELVIEW | G_MTX_LOAD | G_MTX_NOPUSH);
     gDPSetCycleType(OVERLAY_DISP++, G_CYC_1CYCLE);
     gDPSetRenderMode(OVERLAY_DISP++, G_RM_XLU_SURF, G_RM_XLU_SURF2);
     gDPSetCombineMode(OVERLAY_DISP++, G_CC_SHADE, G_CC_SHADE);
