@@ -97,10 +97,17 @@ void RegisterMotoFob() {
     // Age changes always come with a scene load.
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnSceneInit>([](int16_t sceneNum) { SyncFobSlot(); });
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnLoadGame>([](int32_t fileNum) {
-        if (CVarGetInteger(CVAR_START_WITH_KEY_FOB, 0)) {
+        bool granted = false;
+        if (CVarGetInteger(CVAR_START_WITH_KEY_FOB, 0) && !gMotoSave.hasKeyFob) {
             gMotoSave.hasKeyFob = true;
+            granted = true;
         }
         SyncFobSlot();
+        // Handed over at the start, the fob goes straight onto C-left (adult only: it lives in a child slot).
+        if (granted && LINK_IS_ADULT) {
+            gSaveContext.equips.buttonItems[1] = ITEM_KEY_FOB;
+            gSaveContext.equips.cButtonSlots[0] = SLOT_TRADE_CHILD;
+        }
     });
 
     Ship::Context::GetRawInstance()->GetConsole()->AddCommand(
