@@ -1802,6 +1802,8 @@ void Player_PostLimbDrawGameplay(PlayState* play, s32 limbIndex, Gfx** dList, Ve
         Matrix_MultVec3f(&sZeroVec, D_80160000);
     }
 
+    MotoLink_RiderPostLimb(this, limbIndex); // MotoLink: foot axes for the rider pose fitter
+
     if (limbIndex == PLAYER_LIMB_L_HAND) {
         MtxF sp14C;
         Actor* hookedActor;

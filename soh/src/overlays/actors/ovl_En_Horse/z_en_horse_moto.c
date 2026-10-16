@@ -31,6 +31,11 @@ Gfx* Gfx_TextureI8(Gfx* displayListHead, void* texture, s16 textureWidth, s16 te
 #define MOTO_STEER_PIVOT_Z 11.27f
 #define MOTO_RAKE DEG_TO_RAD(25.0f)
 #define MOTO_MAX_STEER DEG_TO_RAD(20.0f) // bars turn with the stick, less as speed builds
+// Collision cylinders (bike space): the bike spans z -31.5..31.8, x +-10, and the rider's head is at ~51.
+#define MOTO_COLLIDER_RADIUS 14
+#define MOTO_COLLIDER_HEIGHT 52
+#define MOTO_COLLIDER_FRONT_Z 16.0f
+#define MOTO_COLLIDER_REAR_Z -16.0f
 // The model's vertices are stored at 10x for precision.
 #define MOTO_MODEL_SCALE 0.1f
 
@@ -100,6 +105,27 @@ void EnHorseMoto_Init(EnHorse* this, PlayState* play) {
     this->motoRpm = MOTO_IDLE_RPM;
     this->motoGear = 1;
     this->motoDoppler = 1.0f;
+}
+
+// Called once En_Horse has set up Epona's colliders. Collision: two cylinders over the front and rear halves of
+// the bike, tall enough to cover the rider (Epona's are 20 wide and 70 tall). The bike has no sphere set: Epona's
+// follows her skeleton, which the bike never draws.
+void EnHorseMoto_InitColliders(EnHorse* this) {
+    this->cyl1.dim.radius = this->cyl2.dim.radius = MOTO_COLLIDER_RADIUS;
+    this->cyl1.dim.height = this->cyl2.dim.height = MOTO_COLLIDER_HEIGHT;
+    this->actor.focus.pos.y = this->actor.world.pos.y + MOTO_SEAT_Y;
+}
+
+// Centres the collision cylinders over the bike's front and rear halves (after Collider_UpdateCylinder has put
+// them at the actor's position). Two circles of MOTO_COLLIDER_RADIUS cover the bike's 63-unit length.
+void EnHorseMoto_PlaceColliders(EnHorse* this) {
+    f32 s = Math_SinS(this->actor.shape.rot.y);
+    f32 c = Math_CosS(this->actor.shape.rot.y);
+
+    this->cyl1.dim.pos.x += (s16)(s * MOTO_COLLIDER_FRONT_Z);
+    this->cyl1.dim.pos.z += (s16)(c * MOTO_COLLIDER_FRONT_Z);
+    this->cyl2.dim.pos.x += (s16)(s * MOTO_COLLIDER_REAR_Z);
+    this->cyl2.dim.pos.z += (s16)(c * MOTO_COLLIDER_REAR_Z);
 }
 
 void EnHorseMoto_Destroy(EnHorse* this, PlayState* play) {

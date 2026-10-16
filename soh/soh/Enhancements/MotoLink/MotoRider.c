@@ -24,7 +24,7 @@ typedef struct {
 
 // Seated pose (limb-local rotations, binary angles), fitted in game to the generated bike (assets/bike/bike_spec.json)
 // with the test driver's "fitrider" stages: head over the tank, wrists at the grips, knees against the tank,
-// ankles over the pegs. Refit after changing the bike's proportions.
+// ankles over the pegs, feet flat on them. Refit after changing the bike's proportions.
 static const RiderJoint sBikePose[] = {
     // Body held still (Epona's riding animations bob and look around; a motorbike rider sits still): the root faces
     // straight ahead and the waist keeps the riding animation's rest value.
@@ -33,10 +33,10 @@ static const RiderJoint sBikePose[] = {
     { PLAYER_LIMB_UPPER, 16408, -6423, 16342 }, // leaning forward over the tank
     { PLAYER_LIMB_R_THIGH, 7651, 8372, 136 },
     { PLAYER_LIMB_R_SHIN, 0, 0, 17136 },
-    { PLAYER_LIMB_R_FOOT, 2416, 929, -18612 },
+    { PLAYER_LIMB_R_FOOT, 3568, -2495, -26068 }, // toes forward, sole on the peg
     { PLAYER_LIMB_L_THIGH, 3304, 492, -6616 },
     { PLAYER_LIMB_L_SHIN, 0, 0, 17776 },
-    { PLAYER_LIMB_L_FOOT, -1722, -2045, -19000 },
+    { PLAYER_LIMB_L_FOOT, -2298, 1155, -24856 },
     // Arms reaching for the grips (Epona's riding animation holds reins low and to one side).
     { PLAYER_LIMB_L_SHOULDER, 15827, -2922, 20143 },
     { PLAYER_LIMB_L_FOREARM, 10420, -2432, -6402 },
@@ -197,4 +197,20 @@ void MotoLink_RiderLimbOverride(PlayState* play, Player* player, s32 limbIndex, 
 // pose fitter starts from these.
 s16 MotoLink_RiderPoseValue(u8 limb, char axis, bool tuck) {
     return Rider_PoseValue(tuck, limb, axis);
+}
+
+Vec3f gMotoRiderFootAxes[2][4];
+
+void MotoLink_RiderPostLimb(Player* player, s32 limbIndex) {
+    static const Vec3f sAxes[4] = { { 0.0f, 0.0f, 0.0f }, { 1000.0f, 0.0f, 0.0f }, { 0.0f, 1000.0f, 0.0f },
+                                    { 0.0f, 0.0f, 1000.0f } };
+    s32 foot = (limbIndex == PLAYER_LIMB_L_FOOT) ? 0 : (limbIndex == PLAYER_LIMB_R_FOOT) ? 1 : -1;
+    s32 i;
+
+    if (foot < 0) {
+        return;
+    }
+    for (i = 0; i < 4; i++) {
+        Matrix_MultVec3f(&sAxes[i], &gMotoRiderFootAxes[foot][i]);
+    }
 }

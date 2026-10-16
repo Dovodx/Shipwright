@@ -38,6 +38,11 @@ void MotoLink_GiveKeyFob(void);
 // En_In when the race is accepted; cleared when Link leaves Lon Lon Ranch.
 void MotoLink_SetRacingOnBike(bool racingOnBike);
 // Applies Link's bike riding pose to one limb (Player's limb-draw callback; MotoRider.c).
+// Records the feet's limb axes (world space) as Link is drawn: gMotoRiderFootAxes[foot][0] is the ankle,
+// [1..3] the ankle plus 10 units along the foot limb's local X, Y and Z (foot 0 left, 1 right). Read by the test
+// driver's pose fitter.
+void MotoLink_RiderPostLimb(struct Player* player, s32 limbIndex);
+extern Vec3f gMotoRiderFootAxes[2][4];
 void MotoLink_RiderLimbOverride(struct PlayState* play, struct Player* player, s32 limbIndex, Vec3f* pos, Vec3s* rot);
 // True while Link is riding the bike (rather than Epona or nothing).
 bool MotoLink_PlayerOnBike(struct PlayState* play);

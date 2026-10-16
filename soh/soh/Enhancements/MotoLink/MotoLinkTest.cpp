@@ -15,8 +15,9 @@
 //   spawnactor <id> <params> <x> <y> <z> [yaw]  spawn any actor (accepts negative coordinates)
 //   ingorace                  act as if Ingo's race was just accepted (what En_In does on "yes"): race state 2,
 //                             reload Lon Lon Ranch with the race-start cutscene index
-//   sidecam <deg> <dist> <height> | off   view Link from a fixed angle relative to his facing (90 = his right),
-//                             e.g. "sidecam 90 120 30" for a side profile; follows him every frame
+//   sidecam <deg> <dist> <height> | off   view Link from a fixed angle relative to his facing (0 = front,
+//                             90 = his left, 270 = his right), e.g. "sidecam 90 120 30" for a side profile;
+//                             follows him every frame
 //   joints                    print Link's current joint rotations (skelAnime jointTable, per limb)
 //   age <0|1>                 set Link's age (0 adult, 1 child) in the save context
 //   eponasong                 act as if Epona's Song was just played (calls Epona, runs song hooks)
@@ -24,7 +25,7 @@
 //   sceneinit                 run the OnSceneInit hooks for the current scene (exercises age-dependent setup)
 //   limbs                     print Link's body part (joint) positions in the ridden bike's space
 //   mount                     place Link beside the bike, ready to get on with A
-//   fitrider <stage>          fit the riding pose (stages: torso, limbs, tucktorso, tuckarms) so the head sits over
+//   fitrider <stage>          fit the riding pose (stages: torso, limbs, feet, tucktorso, tuckarms) so the head sits over
 //                             the tank, ankles reach the pegs and wrists the grips
 //                             (pattern search on the gMotoLink.Pose.* CVars, measured in game; the script pauses
 //                             until it finishes, then prints the fitted values)
@@ -150,6 +151,7 @@ std::string JoinFrom(const std::vector<std::string>& args, size_t start) {
 }
 
 void FitStart(const std::string& stage);
+Vec3f ToBikeSpace(Actor* bike, Vec3f p);
 
 void RunEvent(const TestEvent& ev) {
     const auto& a = ev.args;
@@ -304,6 +306,9 @@ void RunEvent(const TestEvent& ev) {
         static const char* kNames[] = { "waist", "rThigh", "rShin", "rFoot", "lThigh", "lShin", "lFoot", "head",
                                         "hat", "collar", "lShoulder", "lForearm", "lHand", "rShoulder",
                                         "rForearm", "rHand", "sheath", "torso" };
+        if (bike == nullptr) {
+            bike = &player->actor; // not riding: Link's own space
+        }
         if (bike != nullptr) {
             f32 sn = Math_SinS(bike->shape.rot.y), cs = Math_CosS(bike->shape.rot.y);
             void* anim = player->skelAnime.animation;
@@ -314,6 +319,16 @@ void RunEvent(const TestEvent& ev) {
                 Vec3f d = { player->bodyPartsPos[i].x - bike->world.pos.x, player->bodyPartsPos[i].y - bike->world.pos.y,
                             player->bodyPartsPos[i].z - bike->world.pos.z };
                 printf(" %s=(%.1f,%.1f,%.1f)", kNames[i], d.x * cs - d.z * sn, d.y, d.x * sn + d.z * cs);
+            }
+            // Foot axes: direction of the foot limb's local X/Y/Z in bike space (unit vectors), per foot.
+            for (int f = 0; f < 2; f++) {
+                Vec3f p0 = ToBikeSpace(bike, gMotoRiderFootAxes[f][0]);
+                printf(" %sFootAxes=", f == 0 ? "l" : "r");
+                for (int k = 1; k < 4; k++) {
+                    Vec3f pk = ToBikeSpace(bike, gMotoRiderFootAxes[f][k]);
+                    printf("%c(%.2f,%.2f,%.2f)", "xyz"[k - 1], (pk.x - p0.x) / 10.0f, (pk.y - p0.y) / 10.0f,
+                           (pk.z - p0.z) / 10.0f);
+                }
             }
             printf("\n");
         }
@@ -331,6 +346,12 @@ void RunEvent(const TestEvent& ev) {
 
 // Body part positions in the ridden bike's space (+X left, +Y up, +Z forward, origin on the ground between the
 // wheels), undoing the bike's yaw (fit with the lean at 0).
+Vec3f ToBikeSpace(Actor* bike, Vec3f p) {
+    f32 sn = Math_SinS(bike->shape.rot.y), cs = Math_CosS(bike->shape.rot.y);
+    Vec3f d = { p.x - bike->world.pos.x, p.y - bike->world.pos.y, p.z - bike->world.pos.z };
+    return { d.x * cs - d.z * sn, d.y, d.x * sn + d.z * cs };
+}
+
 bool BikeSpacePart(int part, Vec3f* out) {
     Player* player = GET_PLAYER(gPlayState);
     Actor* bike = player->rideActor;
@@ -395,6 +416,27 @@ std::function<f32()> TorsoScore(Vec3f head) {
     };
 }
 
+// Foot on the peg: the foot limb's +X (heel to toe) points forward, a little down and out; its +Y (through the
+// sole, downwards) points down. foot: 0 left, 1 right.
+std::function<f32()> FootScore(int foot) {
+    return [=]() {
+        Player* player = GET_PLAYER(gPlayState);
+        Actor* bike = player->rideActor;
+        if (bike == nullptr) {
+            return 0.0f;
+        }
+        f32 side = (foot == 0) ? 1.0f : -1.0f;
+        Vec3f toe = { 0.2f * side, -0.2f, 0.96f }; // ~12 degrees out, ~12 degrees down
+        Vec3f sole = { 0.0f, -0.98f, -0.2f };      // perpendicular to toe (down, tilted back with it)
+        Vec3f p0 = ToBikeSpace(bike, gMotoRiderFootAxes[foot][0]);
+        Vec3f px = ToBikeSpace(bike, gMotoRiderFootAxes[foot][1]);
+        Vec3f py = ToBikeSpace(bike, gMotoRiderFootAxes[foot][2]);
+        Vec3f ax = { (px.x - p0.x) / 10.0f, (px.y - p0.y) / 10.0f, (px.z - p0.z) / 10.0f };
+        Vec3f ay = { (py.x - p0.x) / 10.0f, (py.y - p0.y) / 10.0f, (py.z - p0.z) / 10.0f };
+        return 100.0f * (DistSq(ax, toe) + DistSq(ay, sole));
+    };
+}
+
 void FitPropose(FitChain& c) {
     s16 v = c.values[c.param] + c.dir * c.step;
     CVarSetInteger(FitCVar(c.params[c.param]).c_str(), v);
@@ -435,6 +477,13 @@ void FitStart(const std::string& stage) {
         sFitChains = { { "torso", torso, TorsoScore({ 0.0f, 48.0f, -2.0f }) } };
     } else if (stage == "tucktorso") {
         sFitChains = { { "torso", torso, TorsoScore({ 0.0f, 44.0f, 3.0f }) } };
+    } else if (stage == "feet") {
+        sFitChains = {
+            { "lFoot", { { PLAYER_LIMB_L_FOOT, 'x' }, { PLAYER_LIMB_L_FOOT, 'y' }, { PLAYER_LIMB_L_FOOT, 'z' } },
+              FootScore(0) },
+            { "rFoot", { { PLAYER_LIMB_R_FOOT, 'x' }, { PLAYER_LIMB_R_FOOT, 'y' }, { PLAYER_LIMB_R_FOOT, 'z' } },
+              FootScore(1) },
+        };
     } else if (stage == "tuckarms") {
         sFitChains = arms();
     } else {

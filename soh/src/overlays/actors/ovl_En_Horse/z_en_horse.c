@@ -847,6 +847,9 @@ void EnHorse_Init(Actor* thisx, PlayState* play2) {
     CollisionCheck_SetInfo(&this->actor.colChkInfo, DamageTable_Get(0xB), &D_80A65F38);
     this->actor.focus.pos = this->actor.world.pos;
     this->actor.focus.pos.y += 70.0f;
+    if (this->type == HORSE_MOTO) {
+        EnHorseMoto_InitColliders(this); // MotoLink: bike-sized colliders
+    }
     this->playerControlled = false;
 
     // MotoLink: the bike ignores Epona's ranch/stable story setup (fleeing, night despawns)
@@ -3620,11 +3623,16 @@ void EnHorse_Update(Actor* thisx, PlayState* play2) {
         Collider_UpdateCylinder(thisx, &this->cyl1);
         Collider_UpdateCylinder(thisx, &this->cyl2);
 
+        // MotoLink: the bike's cylinders sit over its front and rear halves (see EnHorseMoto_Init)
+        if (this->type == HORSE_MOTO) {
+            EnHorseMoto_PlaceColliders(this);
+        } else {
         // Required to match
         this->cyl1.dim.pos.x = this->cyl1.dim.pos.x + (s16)(Math_SinS(thisx->shape.rot.y) * 11.0f);
         this->cyl1.dim.pos.z = this->cyl1.dim.pos.z + (s16)(Math_CosS(thisx->shape.rot.y) * 11.0f);
         this->cyl2.dim.pos.x = this->cyl2.dim.pos.x + (s16)(Math_SinS(thisx->shape.rot.y) * -18.0f);
         this->cyl2.dim.pos.z = this->cyl2.dim.pos.z + (s16)(Math_CosS(thisx->shape.rot.y) * -18.0f);
+        }
         CollisionCheck_SetAT(play, &play->colChkCtx, &this->cyl1.base);
         CollisionCheck_SetOC(play, &play->colChkCtx, &this->cyl1.base);
         CollisionCheck_SetOC(play, &play->colChkCtx, &this->cyl2.base);
@@ -3654,7 +3662,7 @@ void EnHorse_Update(Actor* thisx, PlayState* play2) {
         }
 
         thisx->focus.pos = thisx->world.pos;
-        thisx->focus.pos.y += 70.0f;
+        thisx->focus.pos.y += (this->type == HORSE_MOTO) ? 27.0f : 70.0f; // MotoLink: the bike's seat height
         if ((Rand_ZeroOne() < 0.025f) && this->blinkTimer == 0) {
             this->blinkTimer++;
         } else if (this->blinkTimer > 0) {
