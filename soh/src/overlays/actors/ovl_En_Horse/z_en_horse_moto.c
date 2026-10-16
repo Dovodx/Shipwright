@@ -198,7 +198,7 @@ static void EnHorseMoto_UpdateEngineAudio(EnHorse* this, PlayState* play) {
 // Water above the bike's seat counts as submerged.
 #define MOTO_SUBMERGED_DEPTH 30.0f
 // Exhaust outlet in bike space (left side, rear), where underwater bubbles come from.
-static const Vec3f sMotoExhaust = { -7.3f, 19.75f, -25.4f };
+static const Vec3f sMotoExhaust = { -7.6f, 19.6f, -27.0f };
 
 // Underwater: the bike drives along the bottom like on land (no buoyancy or drag). While Link rides it, the bike
 // does the part of Player's water handling that riding skips: his depth, the underwater timer the air meter runs on

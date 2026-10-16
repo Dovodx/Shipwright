@@ -77,7 +77,41 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="126" Count="30"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="126" Count="31"/>
+	<Triangle1 V00="0" V01="1" V02="2"/>
+	<Triangle1 V00="0" V01="2" V02="3"/>
+	<Triangle1 V00="4" V01="5" V02="6"/>
+	<Triangle1 V00="4" V01="6" V02="7"/>
+	<Triangle1 V00="8" V01="9" V02="10"/>
+	<Triangle1 V00="8" V01="10" V02="11"/>
+	<Triangle1 V00="12" V01="13" V02="14"/>
+	<Triangle1 V00="12" V01="14" V02="15"/>
+	<Triangle1 V00="16" V01="17" V02="18"/>
+	<Triangle1 V00="16" V01="18" V02="19"/>
+	<Triangle1 V00="20" V01="21" V02="22"/>
+	<Triangle1 V00="20" V01="22" V02="23"/>
+	<Triangle1 V00="24" V01="3" V02="25"/>
+	<Triangle1 V00="24" V01="25" V02="26"/>
+	<Triangle1 V00="27" V01="28" V02="29"/>
+	<Triangle1 V00="27" V01="29" V02="30"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="157" Count="30"/>
+	<Triangle1 V00="0" V01="1" V02="2"/>
+	<Triangle1 V00="0" V01="2" V02="3"/>
+	<Triangle1 V00="4" V01="5" V02="6"/>
+	<Triangle1 V00="4" V01="6" V02="7"/>
+	<Triangle1 V00="1" V01="8" V02="9"/>
+	<Triangle1 V00="1" V01="9" V02="2"/>
+	<Triangle1 V00="10" V01="11" V02="12"/>
+	<Triangle1 V00="10" V01="12" V02="13"/>
+	<Triangle1 V00="14" V01="15" V02="16"/>
+	<Triangle1 V00="14" V01="16" V02="17"/>
+	<Triangle1 V00="18" V01="19" V02="20"/>
+	<Triangle1 V00="18" V01="20" V02="21"/>
+	<Triangle1 V00="22" V01="23" V02="24"/>
+	<Triangle1 V00="22" V01="24" V02="25"/>
+	<Triangle1 V00="26" V01="27" V02="28"/>
+	<Triangle1 V00="26" V01="28" V02="29"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="187" Count="30"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -94,7 +128,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="5"/>
 	<Triangle1 V00="28" V01="5" V02="4"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="156" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="217" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -111,7 +145,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="188" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="249" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -130,7 +164,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="220" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="281" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -147,7 +181,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="252" Count="30"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="313" Count="30"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -164,7 +198,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="5"/>
 	<Triangle1 V00="28" V01="5" V02="4"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="282" Count="30"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="343" Count="30"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -181,7 +215,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="24" V01="27" V02="28"/>
 	<Triangle1 V00="24" V01="28" V02="29"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="312" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="373" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="0" V01="3" V02="4"/>
@@ -200,7 +234,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="344" Count="30"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="405" Count="30"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -217,7 +251,7 @@
 	<Triangle1 V00="22" V01="24" V02="25"/>
 	<Triangle1 V00="26" V01="27" V02="28"/>
 	<Triangle1 V00="26" V01="28" V02="29"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="374" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="435" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -234,7 +268,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="406" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="467" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -253,7 +287,7 @@
 	<Triangle1 V00="26" V01="28" V02="29"/>
 	<Triangle1 V00="26" V01="29" V02="30"/>
 	<Triangle1 V00="26" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="438" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="499" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -270,7 +304,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="470" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="531" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -287,7 +321,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="502" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="563" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -304,7 +338,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="534" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="595" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -321,7 +355,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="566" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="627" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -338,7 +372,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="598" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="659" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -355,7 +389,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="630" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="691" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -372,7 +406,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="662" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="723" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -389,7 +423,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="694" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="755" Count="30"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -404,28 +438,9 @@
 	<Triangle1 V00="20" V01="22" V02="23"/>
 	<Triangle1 V00="24" V01="25" V02="26"/>
 	<Triangle1 V00="24" V01="26" V02="27"/>
-	<Triangle1 V00="28" V01="29" V02="30"/>
-	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="726" Count="32"/>
-	<Triangle1 V00="0" V01="1" V02="2"/>
-	<Triangle1 V00="0" V01="2" V02="3"/>
-	<Triangle1 V00="4" V01="5" V02="6"/>
-	<Triangle1 V00="4" V01="6" V02="7"/>
-	<Triangle1 V00="8" V01="9" V02="10"/>
-	<Triangle1 V00="8" V01="10" V02="11"/>
-	<Triangle1 V00="12" V01="13" V02="14"/>
-	<Triangle1 V00="12" V01="14" V02="15"/>
-	<Triangle1 V00="16" V01="17" V02="18"/>
-	<Triangle1 V00="16" V01="18" V02="19"/>
-	<Triangle1 V00="16" V01="19" V02="20"/>
-	<Triangle1 V00="16" V01="20" V02="21"/>
-	<Triangle1 V00="22" V01="23" V02="24"/>
-	<Triangle1 V00="22" V01="24" V02="25"/>
-	<Triangle1 V00="22" V01="25" V02="26"/>
-	<Triangle1 V00="22" V01="26" V02="27"/>
-	<Triangle1 V00="28" V01="29" V02="30"/>
-	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="758" Count="32"/>
+	<Triangle1 V00="25" V01="28" V02="29"/>
+	<Triangle1 V00="25" V01="29" V02="26"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="785" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -438,21 +453,23 @@
 	<Triangle1 V00="16" V01="18" V02="19"/>
 	<Triangle1 V00="20" V01="21" V02="22"/>
 	<Triangle1 V00="20" V01="22" V02="23"/>
-	<Triangle1 V00="20" V01="23" V02="24"/>
-	<Triangle1 V00="20" V01="24" V02="25"/>
-	<Triangle1 V00="26" V01="27" V02="28"/>
-	<Triangle1 V00="26" V01="28" V02="29"/>
-	<Triangle1 V00="26" V01="29" V02="30"/>
-	<Triangle1 V00="26" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="790" Count="30"/>
+	<Triangle1 V00="24" V01="25" V02="26"/>
+	<Triangle1 V00="24" V01="26" V02="27"/>
+	<Triangle1 V00="24" V01="27" V02="28"/>
+	<Triangle1 V00="24" V01="28" V02="29"/>
+	<Triangle1 V00="24" V01="29" V02="30"/>
+	<Triangle1 V00="24" V01="30" V02="31"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="817" Count="30"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
-	<Triangle1 V00="1" V01="4" V02="5"/>
-	<Triangle1 V00="1" V01="5" V02="2"/>
-	<Triangle1 V00="6" V01="7" V02="8"/>
-	<Triangle1 V00="6" V01="8" V02="9"/>
-	<Triangle1 V00="10" V01="11" V02="12"/>
-	<Triangle1 V00="10" V01="12" V02="13"/>
+	<Triangle1 V00="0" V01="3" V02="4"/>
+	<Triangle1 V00="0" V01="4" V02="5"/>
+	<Triangle1 V00="0" V01="5" V02="6"/>
+	<Triangle1 V00="0" V01="6" V02="7"/>
+	<Triangle1 V00="8" V01="9" V02="10"/>
+	<Triangle1 V00="8" V01="10" V02="11"/>
+	<Triangle1 V00="9" V01="12" V02="13"/>
+	<Triangle1 V00="9" V01="13" V02="10"/>
 	<Triangle1 V00="14" V01="15" V02="16"/>
 	<Triangle1 V00="14" V01="16" V02="17"/>
 	<Triangle1 V00="18" V01="19" V02="20"/>
@@ -461,7 +478,7 @@
 	<Triangle1 V00="22" V01="24" V02="25"/>
 	<Triangle1 V00="26" V01="27" V02="28"/>
 	<Triangle1 V00="26" V01="28" V02="29"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="820" Count="32"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="847" Count="32"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -478,7 +495,7 @@
 	<Triangle1 V00="24" V01="26" V02="27"/>
 	<Triangle1 V00="28" V01="29" V02="30"/>
 	<Triangle1 V00="28" V01="30" V02="31"/>
-	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="852" Count="16"/>
+	<LoadVertices Path="objects/object_motolink_bike/gMotoBikeChassisDL_vtx_0" VertexBufferIndex="0" VertexOffset="879" Count="24"/>
 	<Triangle1 V00="0" V01="1" V02="2"/>
 	<Triangle1 V00="0" V01="2" V02="3"/>
 	<Triangle1 V00="4" V01="5" V02="6"/>
@@ -487,6 +504,10 @@
 	<Triangle1 V00="8" V01="10" V02="11"/>
 	<Triangle1 V00="12" V01="13" V02="14"/>
 	<Triangle1 V00="12" V01="14" V02="15"/>
+	<Triangle1 V00="16" V01="17" V02="18"/>
+	<Triangle1 V00="16" V01="18" V02="19"/>
+	<Triangle1 V00="20" V01="21" V02="22"/>
+	<Triangle1 V00="20" V01="22" V02="23"/>
 	<SetGeometryMode G_LIGHTING="1"/>
 	<EndDisplayList/>
 </DisplayList>

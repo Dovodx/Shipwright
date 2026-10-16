@@ -30,19 +30,21 @@ static const RiderJoint sBikePose[] = {
     // straight ahead and the waist keeps the riding animation's rest value.
     { PLAYER_LIMB_ROOT, 0, 0, 0 },
     { PLAYER_LIMB_WAIST, -21951, -614, -14838 },
+    { PLAYER_LIMB_LOWER, 0, 0, 0 },  // parent of the legs
+    { PLAYER_LIMB_COLLAR, 0, 0, 0 }, // parent of the arms (Epona's idle variants shrug it)
     { PLAYER_LIMB_UPPER, 16408, -6423, 16342 }, // leaning forward over the tank
-    { PLAYER_LIMB_R_THIGH, 7651, 8372, 136 },
+    { PLAYER_LIMB_R_THIGH, 7683, 8916, 136 },
     { PLAYER_LIMB_R_SHIN, 0, 0, 17072 },
-    { PLAYER_LIMB_R_FOOT, 3568, -2495, -26004 }, // toes forward, sole on the peg
+    { PLAYER_LIMB_R_FOOT, 3856, -2783, -25716 }, // toes forward, sole on the peg
     { PLAYER_LIMB_L_THIGH, 3112, 492, -6616 },
     { PLAYER_LIMB_L_SHIN, 0, 0, 17712 },
     { PLAYER_LIMB_L_FOOT, -2170, 1283, -24760 },
     // Arms reaching for the grips (Epona's riding animation holds reins low and to one side).
-    { PLAYER_LIMB_L_SHOULDER, 15827, -2922, 20143 },
+    { PLAYER_LIMB_L_SHOULDER, 15699, -3178, 20271 },
     { PLAYER_LIMB_L_FOREARM, 10420, -2432, -6914 },
     { PLAYER_LIMB_L_HAND, 3835, -7257, -22468 },
-    { PLAYER_LIMB_R_SHOULDER, 1818, 29872, -14383 },
-    { PLAYER_LIMB_R_FOREARM, 1803, 5720, -2295 },
+    { PLAYER_LIMB_R_SHOULDER, 1818, 29936, -14255 },
+    { PLAYER_LIMB_R_FOREARM, 1739, 5720, -2295 },
     { PLAYER_LIMB_R_HAND, 2206, -1164, -13920 },
 };
 
@@ -58,10 +60,10 @@ static const RiderJoint sFootDown[] = {
 // gMotoLink.Tuck.<limb>.<axis> override it like the seated pose.
 static const RiderJoint sTuckPose[] = {
     { PLAYER_LIMB_UPPER, 16408, -11927, 16342 },
-    { PLAYER_LIMB_L_SHOULDER, 9427, -3178, 21935 },
-    { PLAYER_LIMB_L_FOREARM, 10420, -6272, -19714 },
+    { PLAYER_LIMB_L_SHOULDER, 9427, -3690, 21935 },
+    { PLAYER_LIMB_L_FOREARM, 10420, -6016, -19458 },
     { PLAYER_LIMB_R_SHOULDER, 12058, 27824, -11823 },
-    { PLAYER_LIMB_R_FOREARM, 1803, 13912, -28407 },
+    { PLAYER_LIMB_R_FOREARM, 2059, 13912, -28663 },
 };
 
 #define RIDER_FOOT_DOWN_SPEED 0.5f
