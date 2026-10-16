@@ -1231,7 +1231,8 @@ void EnHorse_MountedTurn(EnHorse* this, PlayState* play) {
 void EnHorse_StartWalkingFromIdle(EnHorse* this) {
     EnHorse_StartWalkingInterruptable(this);
 
-    if (!(this->stateFlags & ENHORSE_FLAG_8) && !(this->stateFlags & ENHORSE_FLAG_9)) {
+    // MotoLink: the bike just pulls away (no "hyah" kick from Link, no wait before moving)
+    if (this->type != HORSE_MOTO && !(this->stateFlags & ENHORSE_FLAG_8) && !(this->stateFlags & ENHORSE_FLAG_9)) {
         this->stateFlags |= ENHORSE_FLAG_9;
         this->waitTimer = 8;
         return;
@@ -1625,6 +1626,12 @@ void EnHorse_StartLowJump(EnHorse* this, PlayState* play) {
     Vec3s* jointTable;
     f32 y;
 
+    // MotoLink: the bike's jump is ballistic (see EnHorseMoto_StartJump)
+    if (this->type == HORSE_MOTO) {
+        EnHorseMoto_StartJump(this, play, ENHORSE_ACT_LOW_JUMP);
+        return;
+    }
+
     this->action = ENHORSE_ACT_LOW_JUMP;
     this->animationIdx = ENHORSE_ANIM_LOW_JUMP;
     curFrame = this->skin.skelAnime.curFrame;
@@ -1654,6 +1661,11 @@ void EnHorse_LowJump(EnHorse* this, PlayState* play) {
     Vec3s* jointTable;
     f32 curFrame;
     f32 y;
+
+    if (this->type == HORSE_MOTO) {
+        EnHorseMoto_UpdateJump(this, play);
+        return;
+    }
 
     curFrame = this->skin.skelAnime.curFrame;
     this->stateFlags |= ENHORSE_JUMPING;
@@ -1699,6 +1711,12 @@ void EnHorse_StartHighJump(EnHorse* this, PlayState* play) {
     Vec3s* jointTable;
     f32 y;
 
+    // MotoLink: the bike's jump is ballistic (see EnHorseMoto_StartJump)
+    if (this->type == HORSE_MOTO) {
+        EnHorseMoto_StartJump(this, play, ENHORSE_ACT_HIGH_JUMP);
+        return;
+    }
+
     this->action = ENHORSE_ACT_HIGH_JUMP;
     this->animationIdx = ENHORSE_ANIM_HIGH_JUMP;
     curFrame = this->skin.skelAnime.curFrame;
@@ -1729,6 +1747,11 @@ void EnHorse_HighJump(EnHorse* this, PlayState* play) {
     Vec3s* jointTable;
     f32 curFrame;
     f32 y;
+
+    if (this->type == HORSE_MOTO) {
+        EnHorseMoto_UpdateJump(this, play);
+        return;
+    }
 
     curFrame = this->skin.skelAnime.curFrame;
     this->stateFlags |= ENHORSE_JUMPING;
@@ -2898,9 +2921,10 @@ s32 EnHorse_CalcFloorHeight(EnHorse* this, PlayState* play, Vec3f* pos, Collisio
         return 0;
     }
 
+    // MotoLink: horse-blocked ground (the far side of fences that keep Epona in) doesn't stop the bike
     if ((*floorPoly)->normal.y * COLPOLY_NORMAL_FRAC < 0.81915206f || // cos(35 degrees)
-        SurfaceType_IsHorseBlocked(&play->colCtx, *floorPoly, bgId) ||
-        SurfaceType_GetFloorType(&play->colCtx, *floorPoly, bgId) == 7) {
+        (this->type != HORSE_MOTO && (SurfaceType_IsHorseBlocked(&play->colCtx, *floorPoly, bgId) ||
+                                      SurfaceType_GetFloorType(&play->colCtx, *floorPoly, bgId) == 7))) {
         return 3; // Horse blocked surface
     }
     return 0;
@@ -3026,15 +3050,16 @@ void EnHorse_CheckFloors(EnHorse* this, PlayState* play) {
         dist = Math3D_DistPlaneToPos(nx, ny, nz, this->actor.floorPoly->dist, &pos);
         if (!underwaterBike && (((backFloor != this->actor.floorPoly) && (this->actor.speedXZ <= 0.0f) &&
                                  !(this->stateFlags & ENHORSE_JUMPING) && (dist < -40.0f)) ||
-                                (this->stateFlags & ENHORSE_JUMPING && dist < -200.0f))) {
+                                (this->stateFlags & ENHORSE_JUMPING && dist < -200.0f && this->type != HORSE_MOTO))) {
             EnHorse_ObstructMovement(this, play, 5, galloping);
             return;
         }
 
         if (!underwaterBike &&
             (ny < 0.81915206f || // cos(35 degrees)
-             SurfaceType_IsHorseBlocked(&play->colCtx, this->actor.floorPoly, this->actor.floorBgId) ||
-             SurfaceType_GetFloorType(&play->colCtx, this->actor.floorPoly, this->actor.floorBgId) == 7)) {
+             (this->type != HORSE_MOTO &&
+              (SurfaceType_IsHorseBlocked(&play->colCtx, this->actor.floorPoly, this->actor.floorBgId) ||
+               SurfaceType_GetFloorType(&play->colCtx, this->actor.floorPoly, this->actor.floorBgId) == 7)))) {
             if ((this->actor.speedXZ >= 0.0f)) {
                 EnHorse_ObstructMovement(this, play, 4, galloping);
             } else {
@@ -3188,6 +3213,7 @@ void EnHorse_UpdateBgCheckInfo(EnHorse* this, PlayState* play) {
     DynaPolyActor* dynaPoly;
     Vec3f intersect;
     Vec3f obstacleTop;
+    s32 wallBgId = BGCHECK_SCENE;
 
     Actor_UpdateBgCheckInfo(play, &this->actor, play->sceneNum == SCENE_LON_LON_RANCH ? 19.0f : 40.0f, 35.0f, 100.0f,
                             29);
@@ -3254,6 +3280,7 @@ void EnHorse_UpdateBgCheckInfo(EnHorse* this, PlayState* play) {
         intersectDist = sqrt(Math3D_Vec3fDistSq(&startPos, &intersect));
         this->stateFlags |= ENHORSE_OBSTACLE;
     }
+    wallBgId = bgId;
 
     if (wall != NULL) {
         if (intersectDist < 30.0f) {
@@ -3261,7 +3288,7 @@ void EnHorse_UpdateBgCheckInfo(EnHorse* this, PlayState* play) {
         }
         if ((Math_CosS(this->actor.world.rot.y - (s16)(Math_FAtan2F(wall->normal.x, wall->normal.z) * (0x8000 / M_PI)) -
                        0x7FFF) < 0.5f) ||
-            SurfaceType_IsHorseBlocked(&play->colCtx, wall, bgId) != 0) {
+            (this->type != HORSE_MOTO && SurfaceType_IsHorseBlocked(&play->colCtx, wall, bgId) != 0)) {
             return;
         }
 
@@ -3324,7 +3351,7 @@ void EnHorse_UpdateBgCheckInfo(EnHorse* this, PlayState* play) {
 
     ny = obstacleFloor->normal.y * COLPOLY_NORMAL_FRAC;
     if (ny < 0.81915206f || // cos(35 degrees)
-        (SurfaceType_IsHorseBlocked(&play->colCtx, obstacleFloor, bgId) != 0) ||
+        (this->type != HORSE_MOTO && SurfaceType_IsHorseBlocked(&play->colCtx, obstacleFloor, bgId) != 0) ||
         (SurfaceType_GetFloorType(&play->colCtx, obstacleFloor, bgId) == 7)) {
         if (movingFast == true && this->action != ENHORSE_ACT_STOPPING) {
             this->stateFlags |= ENHORSE_FORCE_REVERSING;
@@ -3333,53 +3360,80 @@ void EnHorse_UpdateBgCheckInfo(EnHorse* this, PlayState* play) {
         return;
     }
 
+    // MotoLink: thin fences (rails with no top face) let the downward ray above miss them and hit the ground
+    // behind; for the bike, the fence's height is the top of the wall polygon it ran into.
+    if (this->type == HORSE_MOTO && wall != NULL && obstacleTop.y < intersect.y) {
+        Vec3f verts[3];
+        f32 top;
+
+        CollisionPoly_GetVerticesByBgId(wall, wallBgId, &play->colCtx, verts);
+        top = MAX(verts[0].y, MAX(verts[1].y, verts[2].y));
+        if (top > intersect.y) {
+            obstacleTop.y = top;
+            obstacleHeight = top - this->actor.world.pos.y;
+        }
+    }
     if (wall == NULL || obstacleTop.y < intersect.y || (this->stateFlags & ENHORSE_CANT_JUMP)) {
         return;
     }
 
-    obstaclePos = startPos;
-    obstaclePos.y = this->actor.world.pos.y + 120.0f;
-    if (movingFast == false) {
-        obstaclePos.x += (276.0f * Math_SinS(this->actor.world.rot.y));
-        obstaclePos.z += (276.0f * Math_CosS(this->actor.world.rot.y));
-    } else {
-        obstaclePos.x += (390.0f * Math_SinS(this->actor.world.rot.y));
-        obstaclePos.z += (390.0f * Math_CosS(this->actor.world.rot.y));
-    }
-
-    obstacleTop = obstaclePos;
-    obstacleTop.y = BgCheck_EntityRaycastFloor3(&play->colCtx, &obstacleFloor, &bgId, &obstaclePos);
-    if (obstacleTop.y == BGCHECK_Y_MIN) {
-        return;
-    }
-
-    behindObstacleHeight = obstacleTop.y - this->actor.world.pos.y;
-
-    if (obstacleFloor == NULL) {
-        return;
-    }
-
-    ny = obstacleFloor->normal.y * COLPOLY_NORMAL_FRAC;
-    if (ny < 0.81915206f || // cos(35 degrees)
-        SurfaceType_IsHorseBlocked(&play->colCtx, obstacleFloor, bgId) ||
-        SurfaceType_GetFloorType(&play->colCtx, obstacleFloor, bgId) == 7) {
-        if (movingFast == true && this->action != ENHORSE_ACT_STOPPING) {
-            this->stateFlags |= ENHORSE_FORCE_REVERSING;
-            EnHorse_StartBraking(this, play);
+    // MotoLink: the bike jumps fences whatever is behind them (a drop, a slope, horse-blocked or no ground), so
+    // only Epona checks the landing area
+    if (this->type != HORSE_MOTO) {
+        obstaclePos = startPos;
+        obstaclePos.y = this->actor.world.pos.y + 120.0f;
+        if (movingFast == false) {
+            obstaclePos.x += (276.0f * Math_SinS(this->actor.world.rot.y));
+            obstaclePos.z += (276.0f * Math_CosS(this->actor.world.rot.y));
+        } else {
+            obstaclePos.x += (390.0f * Math_SinS(this->actor.world.rot.y));
+            obstaclePos.z += (390.0f * Math_CosS(this->actor.world.rot.y));
         }
-    } else if (behindObstacleHeight < -DREG(4)) { // -70
-        if (movingFast == true && this->action != ENHORSE_ACT_STOPPING) {
-            this->stateFlags |= ENHORSE_FORCE_REVERSING;
-            EnHorse_StartBraking(this, play);
+
+        obstacleTop = obstaclePos;
+        obstacleTop.y = BgCheck_EntityRaycastFloor3(&play->colCtx, &obstacleFloor, &bgId, &obstaclePos);
+        if (obstacleTop.y == BGCHECK_Y_MIN) {
+            return;
         }
-    } else if (movingFast == false && obstacleHeight > 19.0f && obstacleHeight <= 40.0f) {
+
+        behindObstacleHeight = obstacleTop.y - this->actor.world.pos.y;
+
+        if (obstacleFloor == NULL) {
+            return;
+        }
+
+        ny = obstacleFloor->normal.y * COLPOLY_NORMAL_FRAC;
+        if (ny < 0.81915206f || // cos(35 degrees)
+            SurfaceType_IsHorseBlocked(&play->colCtx, obstacleFloor, bgId) ||
+            SurfaceType_GetFloorType(&play->colCtx, obstacleFloor, bgId) == 7) {
+            if (movingFast == true && this->action != ENHORSE_ACT_STOPPING) {
+                this->stateFlags |= ENHORSE_FORCE_REVERSING;
+                EnHorse_StartBraking(this, play);
+            }
+            return;
+        } else if (behindObstacleHeight < -DREG(4)) { // -70
+            if (movingFast == true && this->action != ENHORSE_ACT_STOPPING) {
+                this->stateFlags |= ENHORSE_FORCE_REVERSING;
+                EnHorse_StartBraking(this, play);
+            }
+            return;
+        }
+    }
+
+    if (movingFast == false && obstacleHeight > 19.0f && obstacleHeight <= 40.0f) {
         EnHorse_Stub1(this);
+        if (this->type == HORSE_MOTO && !EnHorseMoto_PrepareJump(this, intersectDist, obstacleHeight)) {
+            return; // not yet: the bike takes off just before the fence
+        }
         this->postDrawFunc = EnHorse_LowJumpInit;
     } else if ((movingFast == true && this->actor.speedXZ < 13.8f && obstacleHeight > 19.0f &&
                 obstacleHeight <= 72.0f) ||
                (this->actor.speedXZ > 13.8f && obstacleHeight <= 112.0f)) {
 
         EnHorse_Stub2(this);
+        if (this->type == HORSE_MOTO && !EnHorseMoto_PrepareJump(this, intersectDist, obstacleHeight)) {
+            return; // not yet: the bike takes off just before the fence
+        }
         this->postDrawFunc = EnHorse_HighJumpInit;
     }
 }
@@ -3704,6 +3758,11 @@ void EnHorse_Update(Actor* thisx, PlayState* play2) {
             }
         }
         this->stateFlags &= ~ENHORSE_DRAW;
+    }
+    // MotoLink: the rider sits at a fixed seat, set right before Player (updated after the bike) reads it, so no
+    // horse action's saddle-height adjustment ever reaches him
+    if (this->type == HORSE_MOTO) {
+        EnHorseMoto_UpdateRiderPos(this);
     }
 }
 

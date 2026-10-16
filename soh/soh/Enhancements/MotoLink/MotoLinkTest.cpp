@@ -31,7 +31,9 @@
 //                             until it finishes, then prints the fitted values)
 //   probe                     print Link's position and, if riding, the mount's speed/yaw/action
 //   quit                      exit the game
+#include <algorithm>
 #include <cstdio>
+#include <cmath>
 #include <cstdlib>
 #include <unistd.h>
 #include <fstream>
@@ -277,6 +279,47 @@ void RunEvent(const TestEvent& ev) {
             printf(" [%d:%d,%d,%d]", i, j->x, j->y, j->z);
         }
         printf("\n");
+    } else if (cmd == "daytime" && a.size() > 1) {
+        gSaveContext.dayTime = (u16)std::stoi(a[1], nullptr, 0); // e.g. 0x8000 = noon (no Stalchildren)
+    } else if (cmd == "fencefind" && gPlayState != nullptr) {
+        // List jumpable-looking fences in the scene's static collision: wall polygons 19..112 above the ground in
+        // front of them, with the ground height behind them (a big negative drop = cliff behind the fence).
+        CollisionContext* colCtx = &gPlayState->colCtx;
+        CollisionHeader* header = colCtx->colHeader;
+        std::vector<std::pair<int, int>> seen;
+        int found = 0;
+        for (int i = 0; i < header->numPolygons && found < 150; i++) {
+            CollisionPoly* poly = &header->polyList[i];
+            f32 nx = COLPOLY_GET_NORMAL(poly->normal.x), ny = COLPOLY_GET_NORMAL(poly->normal.y),
+                nz = COLPOLY_GET_NORMAL(poly->normal.z);
+            if (fabsf(ny) > 0.2f) {
+                continue;
+            }
+            Vec3f v[3];
+            CollisionPoly_GetVerticesByBgId(poly, BGCHECK_SCENE, colCtx, v);
+            f32 top = std::max(v[0].y, std::max(v[1].y, v[2].y));
+            Vec3f c = { (v[0].x + v[1].x + v[2].x) / 3, top + 60.0f, (v[0].z + v[1].z + v[2].z) / 3 };
+            CollisionPoly* floorPoly;
+            s32 bgId;
+            Vec3f front = { c.x + nx * 40.0f, c.y, c.z + nz * 40.0f };
+            Vec3f behind = { c.x - nx * 120.0f, c.y, c.z - nz * 120.0f };
+            f32 frontY = BgCheck_EntityRaycastFloor3(colCtx, &floorPoly, &bgId, &front);
+            f32 behindY = BgCheck_EntityRaycastFloor3(colCtx, &floorPoly, &bgId, &behind);
+            bool blocked = behindY > BGCHECK_Y_MIN && SurfaceType_IsHorseBlocked(colCtx, floorPoly, bgId);
+            f32 h = top - frontY;
+            if (frontY <= BGCHECK_Y_MIN || h <= 19.0f || h > 112.0f) {
+                continue;
+            }
+            std::pair<int, int> key = { (int)floorf(c.x / 200.0f), (int)floorf(c.z / 200.0f) };
+            if (std::find(seen.begin(), seen.end(), key) != seen.end()) {
+                continue;
+            }
+            seen.push_back(key);
+            found++;
+            printf("motolink-test: fence at (%.0f,%.0f,%.0f) approachYaw=0x%04X height=%.0f behindDrop=%.0f blocked=%d\n",
+                   front.x, frontY, front.z, (u16)Math_Atan2S(-nz, -nx), h,
+                   behindY > BGCHECK_Y_MIN ? behindY - frontY : -9999.0f, blocked);
+        }
     } else if (cmd == "fitrider" && gPlayState != nullptr) {
         if (GET_PLAYER(gPlayState)->rideActor == nullptr) {
             printf("motolink-test: @%d fitrider: not riding, skipped\n", sFrame);

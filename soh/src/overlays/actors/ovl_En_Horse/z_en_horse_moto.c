@@ -22,6 +22,7 @@ Gfx* Gfx_TextureI8(Gfx* displayListHead, void* texture, s16 textureWidth, s16 te
 // Bike geometry in bike space (world units): +Z forward, +Y up, origin on the ground between the wheel contact
 // points. Must match the generated model (assets/bike/bike_spec.json, built by tools/bike/build_bike.py).
 #define MOTO_WHEEL_RADIUS 9
+#define MOTO_WHEEL_MAX_SPIN DEG_TO_RAD(75.0f) // radians per game frame
 #define MOTO_FRONT_WHEEL_Z 22
 #define MOTO_REAR_WHEEL_Z -22
 #define MOTO_SEAT_Y 27
@@ -48,19 +49,16 @@ f32 gMotoThrottle;
 f32 gMotoBrake;
 u8 gMotoRiding;
 
-// Speeds are units/frame at SoH's 20 Hz. Epona gallops at 8 and spurs to 14; the bike tops out at ~1.7x her spur
-// (design: cap well below an authentic Moto Racer top speed so actors keep up and walls don't tunnel).
-#define MOTO_TOP_SPEED 24.0f
 // Drive force at full throttle. With drag growing as (v/top)^2 this reaches 65% of top speed in ~3 s, the feel
 // of Moto Racer's bike #2 (strong acceleration that tails off; see re/NOTES.md "Engine drive-force curve").
-#define MOTO_ACCEL 0.32f
+#define MOTO_ACCEL 0.384f
 #define MOTO_DRAG MOTO_ACCEL // equal to MOTO_ACCEL so full throttle balances exactly at top speed
 #define MOTO_ENGINE_BRAKE 0.08f
 #define MOTO_BRAKE_DECEL 0.9f
 // Turn rate (binary angle units/frame) at a standstill-ish crawl and at top speed; bikes turn by leaning, so the
 // rate falls with speed and fades to zero below MOTO_TURN_MIN_SPEED (no pivoting on the spot).
 #define MOTO_TURN_SLOW 0x300
-#define MOTO_TURN_FAST 0xC0
+#define MOTO_TURN_FAST 0x180
 #define MOTO_TURN_MIN_SPEED 2.0f
 
 f32 EnHorse_SlopeSpeedMultiplier(EnHorse* this, PlayState* play);
@@ -363,6 +361,9 @@ void EnHorseMoto_UpdateStick(EnHorse* this, PlayState* play) {
     EnHorseMoto_UpdateUnderwater(this, play);
     EnHorseMoto_CheckActorCrash(this, play);
     EnHorseMoto_UpdateWheelie(this, play);
+    if (!(this->stateFlags & ENHORSE_JUMPING)) {
+        Math_StepToS(&this->motoPitch, 0, DEGF_TO_BINANG(8.0f)); // level out after landing
+    }
     EnHorseMoto_UpdateLean(this);
     EnHorseMoto_UpdateFallen(this);
     if (this->playerControlled) {
@@ -370,6 +371,11 @@ void EnHorseMoto_UpdateStick(EnHorse* this, PlayState* play) {
     }
     EnHorseMoto_UpdateEngine(this);
     EnHorseMoto_UpdateEngineAudio(this, play);
+    // Wheel spin follows ground speed (speedXZ units/frame over the wheel radius), but is drawn at most
+    // MOTO_WHEEL_MAX_SPIN per game frame (the cap is in radians: RADF_TO_BINANG overflows past half a turn), since
+    // near half a turn per frame, frame interpolation (which takes the short way round) would spin the wheels
+    // backwards and the tyres' polygon outline would visibly wobble.
+    this->motoWheelRot += RADF_TO_BINANG(MIN(this->actor.speedXZ / MOTO_WHEEL_RADIUS, MOTO_WHEEL_MAX_SPIN));
     MotoLink_TrackBike(play, &this->actor, this->playerControlled);
 }
 
@@ -423,8 +429,8 @@ void EnHorseMoto_UpdateSpeed(EnHorse* this, PlayState* play, f32 decel) {
 }
 
 /*
- * Crashes, after Moto Racer's rules (re/NOTES.md "Crash rules"). Its thresholds are in km/h for bike #2, whose
- * top speed is 277 km/h; they are scaled to MOTO_TOP_SPEED so the same fraction of top speed is needed here.
+ * Crashes, after Moto Racer's rules (re/NOTES.md "Crash rules"). Its thresholds are in km/h, converted with the same
+ * speed scale as the tachometer (MOTO_UNITS_PER_KMH).
  *
  * Walls (`c` = how square-on the hit is, 1 = head-on):
  *   - in a wheelie above 20 km/h: crash
@@ -435,11 +441,11 @@ void EnHorseMoto_UpdateSpeed(EnHorse* this, PlayState* play, f32 decel) {
  * standing still: a hard hit (above 90 km/h, or any hit in a wheelie) crashes 25% of the time, otherwise it is a
  * bump that costs 10% of speed. The dice roll once per new contact, and their chance is a CVar.
  *
- * Crashing throws Link off along the hit normal plus 0.6 up through Player's own large knockback, so he lands
- * and gets up as from any big hit (a quarter heart of damage); the bike falls onto the side it was leaning to and
+ * Crashing throws Link off along the bike's momentum (its heading) plus 0.6 up through Player's own large
+ * knockback, so he lands and gets up as from any big hit (a quarter heart of damage); the bike falls onto the side it was leaning to and
  * lies there idling until it rights itself. It is not respawned anywhere: Link walks back or uses the fob.
  */
-#define MOTO_KMH(kmh) ((kmh) * (MOTO_TOP_SPEED / 277.0f))
+#define MOTO_KMH(kmh) ((kmh) * MOTO_UNITS_PER_KMH)
 #define MOTO_CRASH_CHANCE 25         // percent, for Moto Racer's "rand & 3" rolls
 #define MOTO_FLING_SCALE 0.6f        // Link's launch speed per unit of bike speed (Moto Racer: 1.0)
 #define MOTO_CRASH_DAMAGE 4          // health units (16 per heart)
@@ -460,7 +466,7 @@ static bool EnHorseMoto_CanCrash(EnHorse* this, PlayState* play) {
            this->action != ENHORSE_ACT_BRIDGE_JUMP && !Player_InBlockingCsMode(play, GET_PLAYER(play));
 }
 
-static void EnHorseMoto_Crash(EnHorse* this, PlayState* play, s16 normalYaw) {
+static void EnHorseMoto_Crash(EnHorse* this, PlayState* play) {
     Player* player = GET_PLAYER(play);
     f32 speed = this->actor.speedXZ;
     f32 fling = speed * CVarGetFloat("gMotoLink.Crash.Fling", MOTO_FLING_SCALE);
@@ -472,9 +478,9 @@ static void EnHorseMoto_Crash(EnHorse* this, PlayState* play, s16 normalYaw) {
     AREG(6) = 0;
     Camera_RequestSetting(Play_GetCamera(play, CAM_ID_MAIN), CAM_SET_NORMAL0);
 
-    // Launch along normal + 0.6 up, normalised: 0.857 of the speed outwards, 0.514 upwards. Player picks the
-    // knockback up on its own update this frame (it runs after the bike's) now that Link has no parent.
-    Actor_SetPlayerKnockbackLarge(play, &this->actor, fling * 0.857f, normalYaw, fling * 0.514f,
+    // Launch along the bike's momentum + 0.6 up, normalised: 0.857 of the speed forwards, 0.514 upwards. Player
+    // picks the knockback up on its own update this frame (it runs after the bike's) now that Link has no parent.
+    Actor_SetPlayerKnockbackLarge(play, &this->actor, fling * 0.857f, this->actor.world.rot.y, fling * 0.514f,
                                   speed > MOTO_KMH(20.0f) ? MOTO_CRASH_DAMAGE : 0);
 
     // The bike drops onto the side it leant to (either side when upright) and stops dead.
@@ -513,13 +519,16 @@ s32 EnHorseMoto_CheckWallCrash(EnHorse* this, PlayState* play) {
     } else if (this->motoWheelie != 0) {
         crash = v > MOTO_KMH(20.0f);
     } else if (!(this->actor.bgCheckFlags & BGCHECKFLAG_GROUND)) {
+        if (into < 0.3f) {
+            return false; // dropping past a cliff face or grazing a wall in the air
+        }
         crash = newContact && v > MOTO_KMH(20.0f) && EnHorseMoto_CrashRoll();
     } else {
         crash = (into > 0.98f && v > MOTO_KMH(100.0f)) ||
                 (newContact && into > 0.5f && v > MOTO_KMH(80.0f) && EnHorseMoto_CrashRoll());
     }
     if (crash) {
-        EnHorseMoto_Crash(this, play, this->actor.wallYaw);
+        EnHorseMoto_Crash(this, play);
         return true;
     }
 
@@ -582,7 +591,7 @@ static void EnHorseMoto_CheckActorCrash(EnHorse* this, PlayState* play) {
             return; // brushing past
         }
         if ((v > MOTO_KMH(90.0f) || (this->motoWheelie != 0 && v > MOTO_KMH(20.0f))) && EnHorseMoto_CrashRoll()) {
-            EnHorseMoto_Crash(this, play, normalYaw);
+            EnHorseMoto_Crash(this, play);
         } else {
             this->actor.speedXZ = v * 0.9f;
         }
@@ -629,44 +638,133 @@ static void EnHorseMoto_UpdateWheelie(EnHorse* this, PlayState* play) {
 // Rider tilt, applied at Link's root limb (MotoRider.c): the bike's lean (a roll about the ground line under the
 // seat, which is Link's origin) and the wheelie (a pitch about the rear axle), so he stays on the seat.
 void EnHorseMoto_ApplyRiderTilt(EnHorse* this, Player* player) {
-    Matrix_RotateZ(BINANG_TO_RAD(-this->motoLean), MTXMODE_APPLY);
-    if (this->motoWheelie != 0) {
-        // Rear axle in Link's model space: his origin is riderPos.y - 27 above the bike's, at the seat.
-        f32 toModel = 1.0f / player->actor.scale.y;
-        f32 axleY = (MOTO_WHEEL_RADIUS - (this->riderPos.y - 27.0f)) * toModel;
-        f32 axleZ = (MOTO_REAR_WHEEL_Z - MOTO_SEAT_Z) * toModel;
+    // Same pivots as the bike (EnHorseMoto_Draw), in Link's model space: his origin is riderPos.y - 27 above the
+    // bike's, under the seat. Always applied, for frame interpolation (see EnHorseMoto_Draw).
+    f32 toModel = 1.0f / player->actor.scale.y;
+    f32 axleY = (MOTO_WHEEL_RADIUS - (this->riderPos.y - 27.0f)) * toModel;
+    f32 axleZ = (MOTO_REAR_WHEEL_Z - MOTO_SEAT_Z) * toModel;
+    f32 midZ = -MOTO_SEAT_Z * toModel;
 
-        Matrix_Translate(0.0f, axleY, axleZ, MTXMODE_APPLY);
-        Matrix_RotateX(BINANG_TO_RAD(-this->motoWheelie), MTXMODE_APPLY);
-        Matrix_Translate(0.0f, -axleY, -axleZ, MTXMODE_APPLY);
+    Matrix_RotateZ(BINANG_TO_RAD(this->motoLean), MTXMODE_APPLY);
+    Matrix_Translate(0.0f, axleY, axleZ, MTXMODE_APPLY);
+    Matrix_RotateX(BINANG_TO_RAD(-this->motoWheelie), MTXMODE_APPLY);
+    Matrix_Translate(0.0f, 0.0f, midZ - axleZ, MTXMODE_APPLY);
+    Matrix_RotateX(BINANG_TO_RAD(-this->motoPitch), MTXMODE_APPLY);
+    Matrix_Translate(0.0f, -axleY, -midZ, MTXMODE_APPLY);
+}
+
+/*
+ * Fence jumps. Epona's jumps replay her leap animation (fixed speed, height from her skeleton); the bike's are
+ * ballistic instead: it keeps its speed, takes off with just enough upward speed to clear the fence it saw (by
+ * MOTO_JUMP_CLEARANCE, measured where the fence is), flies under gravity and lands wherever the ground is, which
+ * may be well below (fences with a drop behind them). In the air the nose follows the flight path.
+ */
+#define MOTO_JUMP_GRAVITY 3.5f       // Epona's
+#define MOTO_JUMP_CLEARANCE 15.0f
+#define MOTO_JUMP_MIN_SPEED 10.0f
+#define MOTO_JUMP_LEAD_FRAMES 4.0f     // take off this many frames before the fence...
+#define MOTO_JUMP_LEAD_MIN_DIST 50.0f  // ...but no closer than this (the bike's wall contact reaches 35)
+#define MOTO_JUMP_PITCH_MAX DEGF_TO_BINANG(25.0f)
+
+// Called each frame a jumpable fence is in sight. The bike keeps riding until the fence is MOTO_JUMP_LEAD_FRAMES
+// away, then takes off (returns true) with the launch speed that clears it.
+s32 EnHorseMoto_PrepareJump(EnHorse* this, f32 obstacleDist, f32 obstacleHeight) {
+    f32 v = MAX(this->actor.speedXZ, MOTO_JUMP_MIN_SPEED);
+    f32 t;
+
+    if (obstacleDist > MAX(v * MOTO_JUMP_LEAD_FRAMES, MOTO_JUMP_LEAD_MIN_DIST)) {
+        return false;
+    }
+    t = MAX(obstacleDist / v, 2.0f); // frames until the bike is over the fence
+    // Height at time t: vy t - g t^2 / 2 = obstacle + clearance
+    this->motoJumpVy = CLAMP((obstacleHeight + MOTO_JUMP_CLEARANCE) / t + 0.5f * MOTO_JUMP_GRAVITY * t, 8.0f, 40.0f);
+    return true;
+}
+
+void EnHorseMoto_StartJump(EnHorse* this, PlayState* play, s32 action) {
+    this->action = action;
+    this->postDrawFunc = NULL;
+    this->stateFlags |= ENHORSE_JUMPING;
+    this->actor.speedXZ = MAX(this->actor.speedXZ, MOTO_JUMP_MIN_SPEED);
+    this->actor.velocity.y = this->motoJumpVy;
+    this->actor.gravity = -MOTO_JUMP_GRAVITY;
+    this->actor.bgCheckFlags &= ~BGCHECKFLAG_GROUND;
+    this->motoWheelie = 0;
+    Rumble_Request(0.0f, 170, 10, 10);
+}
+
+void EnHorse_JumpLanding(EnHorse* this, PlayState* play);
+
+void EnHorseMoto_UpdateJump(EnHorse* this, PlayState* play) {
+    s16 pitch = RADF_TO_BINANG(Math_FAtan2F(this->actor.velocity.y, MAX(this->actor.speedXZ, 1.0f)));
+
+    this->stateFlags |= ENHORSE_JUMPING;
+    this->motoPitch = CLAMP(pitch, -MOTO_JUMP_PITCH_MAX, MOTO_JUMP_PITCH_MAX);
+    if (this->actor.velocity.y < 0.0f && (this->actor.bgCheckFlags & BGCHECKFLAG_GROUND)) {
+        this->stateFlags &= ~ENHORSE_JUMPING;
+        this->actor.gravity = -MOTO_JUMP_GRAVITY;
+        Rumble_Request(0.0f, 255, 10, 80);
+        EnHorse_JumpLanding(this, play);
     }
 }
 
 /*
- * Bike camera, applied to the view just before drawing (the camera recomputes the view every frame, so this never
- * accumulates): a wider field of view the faster the bike goes, and the eye brought in and lowered for a tighter,
- * lower chase view than Epona's.
+ * Bike camera: a Moto Racer-style chase camera replacing the horse camera while riding. It sits a fixed distance
+ * behind and above the bike, keeps the horizon level, follows the bike's height smoothly and turns after the bike's
+ * heading with a short lag, so in a turn the bike swings a little to the side of the screen. Defaults reproduce
+ * Moto Racer's chase view (bike and rider about a third of the screen height, rear tyre near the bottom edge,
+ * horizon just above the centre; measured on re/shots/ride/ride2.png at OoT's 60 degree field of view).
+ *
+ * It is applied to the view just before drawing (the game camera recomputes the view every frame, so this never
+ * accumulates); its state advances once per game frame, and frame interpolation smooths the rest.
  */
-#define MOTO_CAM_FOV_KICK 10.0f  // extra degrees at top speed
-#define MOTO_CAM_PULLBACK 0.8f   // eye distance multiplier (closer chase view than Epona's)
-#define MOTO_CAM_LOWER 6.0f      // eye lowered by this many units
+#define MOTO_CAM_BACK 172.0f      // eye distance behind the bike
+#define MOTO_CAM_HEIGHT 80.0f     // eye height above the bike's ground point
+#define MOTO_CAM_AHEAD 400.0f     // look-at point ahead of the bike...
+#define MOTO_CAM_AT_HEIGHT 61.0f  // ...at this height (about 2 degrees of downward pitch)
+#define MOTO_CAM_YAW_FOLLOW 0.25f // fraction of the heading difference caught up per frame
+#define MOTO_CAM_Y_FOLLOW 0.35f   // same for the bike's height (jumps, slopes)
+#define MOTO_CAM_FOV 60.0f
+
+static s16 sMotoCamYaw;
+static f32 sMotoCamY;
+static u32 sMotoCamFrame;
+static u8 sMotoCamActive;
 
 void EnHorseMoto_AdjustView(PlayState* play) {
     EnHorse* bike = gMotoRiddenBike;
     View* view = &play->view;
-    f32 speedFrac;
+    f32 s, c, back, ahead;
 
-    if (bike == NULL || !gMotoRiding || play->activeCamera != CAM_ID_MAIN) {
+    if (bike == NULL || !gMotoRiding || play->activeCamera != CAM_ID_MAIN || play->csCtx.state != CS_STATE_IDLE ||
+        !CVarGetInteger("gMotoLink.Camera.Chase", 1)) {
+        sMotoCamActive = false;
         return;
     }
-    speedFrac = CLAMP(bike->actor.speedXZ / MOTO_TOP_SPEED, 0.0f, 1.0f);
-    view->fovy += CVarGetFloat("gMotoLink.Camera.FovKick", MOTO_CAM_FOV_KICK) * speedFrac * speedFrac;
-    {
-        f32 pull = CVarGetFloat("gMotoLink.Camera.Pullback", MOTO_CAM_PULLBACK);
-        view->eye.x = view->lookAt.x + (view->eye.x - view->lookAt.x) * pull;
-        view->eye.z = view->lookAt.z + (view->eye.z - view->lookAt.z) * pull;
-        view->eye.y = view->lookAt.y + (view->eye.y - view->lookAt.y) * pull - CVarGetFloat("gMotoLink.Camera.Lower", MOTO_CAM_LOWER);
+    if (!sMotoCamActive) {
+        sMotoCamYaw = bike->actor.world.rot.y;
+        sMotoCamY = bike->actor.world.pos.y;
+        sMotoCamActive = true;
+    } else if (sMotoCamFrame != play->gameplayFrames) {
+        sMotoCamYaw += (s16)((s16)(bike->actor.world.rot.y - sMotoCamYaw) *
+                             CVarGetFloat("gMotoLink.Camera.YawFollow", MOTO_CAM_YAW_FOLLOW));
+        sMotoCamY += (bike->actor.world.pos.y - sMotoCamY) * CVarGetFloat("gMotoLink.Camera.YFollow", MOTO_CAM_Y_FOLLOW);
     }
+    sMotoCamFrame = play->gameplayFrames;
+
+    s = Math_SinS(sMotoCamYaw);
+    c = Math_CosS(sMotoCamYaw);
+    back = CVarGetFloat("gMotoLink.Camera.Back", MOTO_CAM_BACK);
+    ahead = CVarGetFloat("gMotoLink.Camera.Ahead", MOTO_CAM_AHEAD);
+    view->eye.x = bike->actor.world.pos.x - s * back;
+    view->eye.y = sMotoCamY + CVarGetFloat("gMotoLink.Camera.Height", MOTO_CAM_HEIGHT);
+    view->eye.z = bike->actor.world.pos.z - c * back;
+    view->lookAt.x = bike->actor.world.pos.x + s * ahead;
+    view->lookAt.y = sMotoCamY + CVarGetFloat("gMotoLink.Camera.AtHeight", MOTO_CAM_AT_HEIGHT);
+    view->lookAt.z = bike->actor.world.pos.z + c * ahead;
+    view->up.x = view->up.z = 0.0f;
+    view->up.y = 1.0f;
+    view->fovy = CVarGetFloat("gMotoLink.Camera.Fov", MOTO_CAM_FOV);
 }
 
 void EnHorseMoto_UpdateRiderPos(EnHorse* this) {
@@ -679,8 +777,6 @@ void EnHorseMoto_UpdateRiderPos(EnHorse* this) {
 }
 
 void EnHorseMoto_Draw(EnHorse* this, PlayState* play) {
-    // Wheel spin follows ground speed: speedXZ units/frame over a 9-unit radius.
-    this->motoWheelRot += RADF_TO_BINANG(this->actor.speedXZ / MOTO_WHEEL_RADIUS);
 
     if (!(this->stateFlags & ENHORSE_CALC_RIDER_POS)) {
         EnHorseMoto_UpdateRiderPos(this);
@@ -696,12 +792,14 @@ void EnHorseMoto_Draw(EnHorse* this, PlayState* play) {
 
     Matrix_SetTranslateRotateYXZ(this->actor.world.pos.x, this->actor.world.pos.y, this->actor.world.pos.z,
                                  &this->actor.shape.rot);
-    Matrix_RotateZ(BINANG_TO_RAD(-this->motoLean), MTXMODE_APPLY); // roll about the ground contact line
-    if (this->motoWheelie != 0) { // pitch about the rear axle
-        Matrix_Translate(0.0f, MOTO_WHEEL_RADIUS, MOTO_REAR_WHEEL_Z, MTXMODE_APPLY);
-        Matrix_RotateX(BINANG_TO_RAD(-this->motoWheelie), MTXMODE_APPLY);
-        Matrix_Translate(0.0f, -MOTO_WHEEL_RADIUS, -MOTO_REAR_WHEEL_Z, MTXMODE_APPLY);
-    }
+    Matrix_RotateZ(BINANG_TO_RAD(this->motoLean), MTXMODE_APPLY); // roll about the ground contact line
+    // Pitch: the wheelie about the rear axle, then the flight path in the air about the middle. Always applied
+    // (angle 0 when unused) so the matrix operations stay the same from frame to frame for frame interpolation.
+    Matrix_Translate(0.0f, MOTO_WHEEL_RADIUS, MOTO_REAR_WHEEL_Z, MTXMODE_APPLY);
+    Matrix_RotateX(BINANG_TO_RAD(-this->motoWheelie), MTXMODE_APPLY);
+    Matrix_Translate(0.0f, 0.0f, -MOTO_REAR_WHEEL_Z, MTXMODE_APPLY);
+    Matrix_RotateX(BINANG_TO_RAD(-this->motoPitch), MTXMODE_APPLY);
+    Matrix_Translate(0.0f, -MOTO_WHEEL_RADIUS, 0.0f, MTXMODE_APPLY);
 
     // Chassis
     Matrix_Push();
@@ -761,8 +859,8 @@ void EnHorseMoto_Draw(EnHorse* this, PlayState* play) {
 #define TACH_ANGLE_ZERO DEG_TO_RAD(225.0f) // 0 rpm at lower left
 #define TACH_SWEEP DEG_TO_RAD(215.0f)      // clockwise to the top of the scale
 #define TACH_DISC_SEGMENTS 32
-// Speed readout in mph, as on the USA Moto Racer HUD: top speed shows bike #2's 172 mph.
-#define TACH_MPH_PER_UNIT (172.0f / MOTO_TOP_SPEED)
+// Speed readout in mph, as on the USA Moto Racer HUD (same scale as Moto Racer's bike #2: 24 units/frame = 172 mph).
+#define TACH_MPH_PER_UNIT (1.0f / (MOTO_UNITS_PER_KMH * 1.609344f))
 
 #define TACH_MAX_VTX 512
 

@@ -177,7 +177,7 @@ void MotoLink_RiderLimbOverride(PlayState* play, Player* player, s32 limbIndex, 
     // when the variable already holds an integer (libultraship ConsoleVariable::SetString).
     tuck = CVarGetInteger("gMotoLink.Pose.TuckPin", 0)
                ? CVarGetInteger("gMotoLink.Pose.TuckForce", 0) / 100.0f
-               : CLAMP(bike->actor.speedXZ / 24.0f, 0.0f, 1.0f) * CVarGetFloat("gMotoLink.Pose.Tuck", 1.0f);
+               : CLAMP(bike->actor.speedXZ / MOTO_TOP_SPEED, 0.0f, 1.0f) * CVarGetFloat("gMotoLink.Pose.Tuck", 1.0f);
 
     if (limbIndex == PLAYER_LIMB_ROOT) {
         pos->x = 0.0f;

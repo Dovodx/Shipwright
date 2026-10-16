@@ -178,6 +178,8 @@ typedef struct EnHorse {
     s16 motoFallen;    // after a crash: the side the bike lies on (+-0x4000 roll), 0 when upright
     s16 motoFallenTimer; // frames until a fallen bike rights itself
     u8 motoWallTouch;  // touching a wall last frame (crash rules run once per new contact)
+    f32 motoJumpVy;    // launch speed for the next fence jump (worked out when the jump is triggered)
+    s16 motoPitch;     // nose up/down in the air (binary angle, positive = nose up)
 
 // MotoLink: underwater (and briefly after leaving the water, e.g. over a waterfall's lip) the bike follows the
 // bottom wherever it goes, ignoring the horse's refusal of drops, steep and horse-blocked floors.
