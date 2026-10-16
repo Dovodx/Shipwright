@@ -21,10 +21,11 @@ Gfx* Gfx_TextureI8(Gfx* displayListHead, void* texture, s16 textureWidth, s16 te
 
 // Bike geometry in bike space (world units): +Z forward, +Y up, origin on the ground between the wheel contact
 // points. Must match the generated model (assets/bike/bike_spec.json, built by tools/bike/build_bike.py).
-#define MOTO_WHEEL_RADIUS 10.5f
+#define MOTO_WHEEL_RADIUS 10.5f      // front
+#define MOTO_REAR_WHEEL_RADIUS 12.5f // the rear is bigger (fat tyre), as on the reference
 #define MOTO_WHEEL_MAX_SPIN DEG_TO_RAD(75.0f) // radians per game frame
 #define MOTO_FRONT_WHEEL_Z 22
-#define MOTO_REAR_WHEEL_Z -22
+#define MOTO_REAR_WHEEL_Z -23
 #define MOTO_SEAT_Y 27
 #define MOTO_SEAT_Z -7
 // Steering head: the fork part's origin, and the rake of the steering axis.
@@ -632,7 +633,7 @@ void EnHorseMoto_ApplyRiderTilt(EnHorse* this, Player* player) {
     // Same pivots as the bike (EnHorseMoto_Draw), in Link's model space: his origin is riderPos.y - 27 above the
     // bike's, under the seat. Always applied, for frame interpolation (see EnHorseMoto_Draw).
     f32 toModel = 1.0f / player->actor.scale.y;
-    f32 axleY = (MOTO_WHEEL_RADIUS - (this->riderPos.y - 27.0f)) * toModel;
+    f32 axleY = (MOTO_REAR_WHEEL_RADIUS - (this->riderPos.y - 27.0f)) * toModel;
     f32 axleZ = (MOTO_REAR_WHEEL_Z - MOTO_SEAT_Z) * toModel;
     f32 midZ = -MOTO_SEAT_Z * toModel;
 
@@ -809,11 +810,11 @@ void EnHorseMoto_Draw(EnHorse* this, PlayState* play) {
     Matrix_RotateZ(BINANG_TO_RAD(this->motoLean), MTXMODE_APPLY); // roll about the ground contact line
     // Pitch: the wheelie about the rear axle, then the flight path in the air about the middle. Always applied
     // (angle 0 when unused) so the matrix operations stay the same from frame to frame for frame interpolation.
-    Matrix_Translate(0.0f, MOTO_WHEEL_RADIUS, MOTO_REAR_WHEEL_Z, MTXMODE_APPLY);
+    Matrix_Translate(0.0f, MOTO_REAR_WHEEL_RADIUS, MOTO_REAR_WHEEL_Z, MTXMODE_APPLY);
     Matrix_RotateX(BINANG_TO_RAD(-this->motoWheelie), MTXMODE_APPLY);
     Matrix_Translate(0.0f, 0.0f, -MOTO_REAR_WHEEL_Z, MTXMODE_APPLY);
     Matrix_RotateX(BINANG_TO_RAD(-this->motoPitch), MTXMODE_APPLY);
-    Matrix_Translate(0.0f, -MOTO_WHEEL_RADIUS, 0.0f, MTXMODE_APPLY);
+    Matrix_Translate(0.0f, -MOTO_REAR_WHEEL_RADIUS, 0.0f, MTXMODE_APPLY);
 
     // Chassis
     Matrix_Push();
@@ -824,8 +825,9 @@ void EnHorseMoto_Draw(EnHorse* this, PlayState* play) {
 
     // Rear wheel
     Matrix_Push();
-    Matrix_Translate(0.0f, MOTO_WHEEL_RADIUS, MOTO_REAR_WHEEL_Z, MTXMODE_APPLY);
-    Matrix_RotateX(BINANG_TO_RAD(this->motoWheelRot), MTXMODE_APPLY);
+    Matrix_Translate(0.0f, MOTO_REAR_WHEEL_RADIUS, MOTO_REAR_WHEEL_Z, MTXMODE_APPLY);
+    // the bigger rear wheel turns slower for the same ground speed
+    Matrix_RotateX(BINANG_TO_RAD(this->motoWheelRot) * (MOTO_WHEEL_RADIUS / MOTO_REAR_WHEEL_RADIUS), MTXMODE_APPLY);
     Matrix_Scale(MOTO_MODEL_SCALE, MOTO_MODEL_SCALE, MOTO_MODEL_SCALE, MTXMODE_APPLY);
     gSPMatrix(POLY_OPA_DISP++, MATRIX_NEWMTX(play->state.gfxCtx), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
     gSPDisplayList(POLY_OPA_DISP++, (Gfx*)gMotoBikeWheelRearDL);
