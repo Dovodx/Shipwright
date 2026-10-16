@@ -12,6 +12,7 @@
 //   actors [id]               print live actors (optionally only one actor id): id, pos, yaw, params
 //   teleport <x> <y> <z> [yaw] move Link (handles negative coordinates, unlike the console's pos)
 //   bike <x> <y> <z> [yaw]    move the bike in the scene (Link comes along if riding)
+//   spawnactor <id> <params> <x> <y> <z> [yaw]  spawn any actor (accepts negative coordinates)
 //   age <0|1>                 set Link's age (0 adult, 1 child) in the save context
 //   eponasong                 act as if Epona's Song was just played (calls Epona, runs song hooks)
 //   eventflag <hex>           set an eventChkInf flag (e.g. 0x69 raises Lake Hylia's water); reload to apply
@@ -138,6 +139,7 @@ void RunEvent(const TestEvent& ev) {
         printf("motolink-test: @%d probe link=(%.0f,%.0f,%.0f) riding=%d age=%d childTradeSlot=0x%02X", sFrame,
                player->actor.world.pos.x, player->actor.world.pos.y, player->actor.world.pos.z, ride != nullptr,
                gSaveContext.linkAge, gSaveContext.inventory.items[SLOT_TRADE_CHILD]);
+        printf(" rupees=%d health=%d", gSaveContext.rupees, gSaveContext.health);
         printf(" water=%.0f sf1=0x%08X sf2=0x%08X uwTimer=%d timerState=%d timer=%d boots=%d", player->actor.yDistToWater,
                player->stateFlags1, player->stateFlags2, player->underwaterTimer, gSaveContext.timerState,
                gSaveContext.timerSeconds, player->currentBoots);
@@ -191,6 +193,12 @@ void RunEvent(const TestEvent& ev) {
                 }
             }
         }
+    } else if (cmd == "spawnactor" && a.size() >= 6 && gPlayState != nullptr) {
+        Actor* spawned = Actor_Spawn(&gPlayState->actorCtx, gPlayState, (s16)std::stoi(a[1], nullptr, 0), std::stof(a[3]),
+                                     std::stof(a[4]), std::stof(a[5]), 0,
+                                     a.size() >= 7 ? (s16)std::stoi(a[6], nullptr, 0) : 0, 0,
+                                     (s16)std::stoi(a[2], nullptr, 0));
+        printf("motolink-test: @%d spawnactor %s -> %s\n", sFrame, a[1].c_str(), spawned ? "ok" : "failed");
     } else if (cmd == "age" && a.size() > 1) {
         gSaveContext.linkAge = std::stoi(a[1]);
     } else if (cmd == "log") {

@@ -14,6 +14,7 @@
 #include "textures/parameter_static/parameter_static.h"
 #include "soh/OTRGlobals.h"
 #include "soh/Enhancements/MotoLink/MotoLink.h"
+#include "overlays/actors/ovl_En_Kusa/z_en_kusa.h"
 
 Gfx* Gfx_TextureI8(Gfx* displayListHead, void* texture, s16 textureWidth, s16 textureHeight, s16 rectLeft, s16 rectTop,
                    s16 rectWidth, s16 rectHeight, u16 dsdx, u16 dtdy);
@@ -326,6 +327,67 @@ static void EnHorseMoto_UpdateUnderwater(EnHorse* this, PlayState* play) {
     }
 }
 
+/*
+ * Grass: riding through grass and bushes cuts them, as a sword swing would, without slowing the bike or affecting
+ * its handling. Grass is cut a little before the bike reaches it (further ahead the faster it goes), so its push
+ * collider never gets to shove the bike, and whatever it drops is pulled straight to Link to be collected.
+ */
+#define MOTO_GRASS_REACH 35.0f    // cut radius around the bike at a standstill
+#define MOTO_GRASS_LOOKAHEAD 2.0f // plus this many frames of travel
+#define MOTO_DROP_RANGE 80.0f     // items this close to a fresh cut are the cut's drops
+#define MOTO_DROP_WINDOW 40       // frames after a cut during which its drops are collected
+#define MOTO_MAX_CUTS 8
+
+static Vec3f sMotoCutPos[MOTO_MAX_CUTS];
+static u32 sMotoCutFrame[MOTO_MAX_CUTS];
+static s32 sMotoNextCut;
+
+static void EnHorseMoto_CutGrass(EnHorse* this, PlayState* play) {
+    f32 reach = MOTO_GRASS_REACH + this->actor.speedXZ * MOTO_GRASS_LOOKAHEAD;
+    Vec3f ahead = this->actor.world.pos;
+    Actor* actor;
+    s32 i;
+
+    // Centre the reach ahead of the bike so grass is caught before the wheels arrive.
+    ahead.x += Math_SinS(this->actor.world.rot.y) * this->actor.speedXZ * MOTO_GRASS_LOOKAHEAD * 0.5f;
+    ahead.z += Math_CosS(this->actor.world.rot.y) * this->actor.speedXZ * MOTO_GRASS_LOOKAHEAD * 0.5f;
+
+    for (actor = play->actorCtx.actorLists[ACTORCAT_PROP].head; actor != NULL; actor = actor->next) {
+        EnKusa* grass = (EnKusa*)actor;
+
+        if (actor->id != ACTOR_EN_KUSA || actor->update == NULL || (actor->flags & ACTOR_FLAG_GRASS_DESTROYED) ||
+            !(grass->collider.base.acFlags & AC_ON) || fabsf(actor->world.pos.y - this->actor.world.pos.y) > 50.0f ||
+            Math_Vec3f_DistXZ(&ahead, &actor->world.pos) > reach) {
+            continue;
+        }
+        grass->collider.base.acFlags |= AC_HIT; // En_Kusa cuts itself (and drops its item) on its next update
+        grass->collider.base.ocFlags1 &= ~OC1_ON; // and no longer pushes the bike in the meantime
+        sMotoCutPos[sMotoNextCut] = actor->world.pos;
+        sMotoCutFrame[sMotoNextCut] = play->gameplayFrames;
+        sMotoNextCut = (sMotoNextCut + 1) % MOTO_MAX_CUTS;
+    }
+
+    // Pull fresh drops from cut grass to Link (riding past, he'd otherwise leave them far behind).
+    for (actor = play->actorCtx.actorLists[ACTORCAT_MISC].head; actor != NULL; actor = actor->next) {
+        if (actor->id != ACTOR_EN_ITEM00 || actor->update == NULL) {
+            continue;
+        }
+        for (i = 0; i < MOTO_MAX_CUTS; i++) {
+            if (sMotoCutFrame[i] != 0 && play->gameplayFrames - sMotoCutFrame[i] < MOTO_DROP_WINDOW &&
+                Math_Vec3f_DistXZ(&sMotoCutPos[i], &actor->home.pos) < MOTO_DROP_RANGE) {
+                Player* player = GET_PLAYER(play);
+
+                // Placed on Link with its pop-up bounce cancelled, it is picked up on its own update this frame.
+                actor->world.pos = player->actor.world.pos;
+                actor->velocity.x = actor->velocity.y = actor->velocity.z = 0.0f;
+                actor->speedXZ = 0.0f;
+                ((EnItem00*)actor)->unk_154 = 0; // no pickup delay
+                break;
+            }
+        }
+    }
+}
+
 static void EnHorseMoto_UpdateEngine(EnHorse* this) {
     f32 frac = this->actor.speedXZ / MOTO_TOP_SPEED;
     f32 throttle = this->playerControlled ? gMotoThrottle : 0.0f;
@@ -364,6 +426,9 @@ void EnHorseMoto_UpdateStick(EnHorse* this, PlayState* play) {
         gMotoRiddenBike = NULL;
     }
     EnHorseMoto_UpdateUnderwater(this, play);
+    if (this->playerControlled) {
+        EnHorseMoto_CutGrass(this, play);
+    }
     EnHorseMoto_UpdateEngine(this);
     EnHorseMoto_UpdateEngineAudio(this, play);
     MotoLink_TrackBike(play, &this->actor, this->playerControlled);
