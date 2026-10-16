@@ -5,6 +5,7 @@
  */
 
 #include "z_en_horse.h"
+#include "z_en_horse_moto.h"
 #include "overlays/actors/ovl_En_In/z_en_in.h"
 #include "objects/object_horse/object_horse.h"
 #include "objects/object_hni/object_hni.h"
@@ -63,11 +64,12 @@ static AnimationHeader* sHniAnimHeaders[] = {
     &gHorseIngoGallopingAnim, &gHorseIngoJumpingAnim, &gHorseIngoJumpingHighAnim,
 };
 
-static AnimationHeader** sAnimationHeaders[] = { sEponaAnimHeaders, sHniAnimHeaders };
+// MotoLink: HORSE_MOTO runs Epona's (undrawn) skeleton and animations so all frame-based logic behaves like Epona
+static AnimationHeader** sAnimationHeaders[] = { sEponaAnimHeaders, sHniAnimHeaders, sEponaAnimHeaders };
 
 static f32 sPlaybackSpeeds[] = { 2.0f / 3.0f, 2.0f / 3.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f / 3.0f, 2.0f / 3.0f };
 
-static SkeletonHeader* sSkeletonHeaders[] = { &gEponaSkel, &gHorseIngoSkel };
+static SkeletonHeader* sSkeletonHeaders[] = { &gEponaSkel, &gHorseIngoSkel, &gEponaSkel };
 
 const ActorInit En_Horse_InitVars = {
     ACTOR_EN_HORSE,
@@ -779,6 +781,10 @@ void EnHorse_Init(Actor* thisx, PlayState* play2) {
         this->actor.objBankIndex = this->bankIndex;
         Actor_SetObjectDependency(play, &this->actor);
         this->boostSpeed = 12;
+    } else if (this->actor.params & ENHORSE_PARAM_MOTO) {
+        this->actor.params &= ~ENHORSE_PARAM_MOTO;
+        this->type = HORSE_MOTO;
+        this->boostSpeed = 14;
     } else {
         this->type = HORSE_EPONA;
         this->boostSpeed = 14;
@@ -3856,6 +3862,14 @@ void EnHorse_Draw(Actor* thisx, PlayState* play) {
     EnHorse* this = (EnHorse*)thisx;
 
     if (!(this->stateFlags & ENHORSE_INACTIVE)) {
+        if (this->type == HORSE_MOTO) {
+            this->stateFlags |= ENHORSE_DRAW;
+            EnHorseMoto_Draw(this, play);
+            if (this->postDrawFunc != NULL) {
+                this->postDrawFunc(this, play);
+            }
+            return;
+        }
         Gfx_SetupDL_25Opa(play->state.gfxCtx);
         this->stateFlags |= ENHORSE_DRAW;
         if (this->stateFlags & ENHORSE_JUMPING) {

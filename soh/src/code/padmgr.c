@@ -1,4 +1,5 @@
 #include "global.h"
+
 #include "vt.h"
 #include <string.h>
 
@@ -6,6 +7,8 @@
 #include "soh/Enhancements/controls/Mouse.h"
 #include "soh/OTRGlobals.h"
 #include "soh/ResourceManagerHelpers.h"
+
+void MotoLinkTest_OverrideInput(OSContPad* pad); // soh/Enhancements/MotoLink/MotoLinkTest.cpp
 
 s32 D_8012D280 = 1;
 
@@ -287,6 +290,10 @@ void PadMgr_ProcessInputs(PadMgr* padMgr) {
                 Fault_AddHungupAndCrash(__FILE__, __LINE__);
         }
 
+        // MotoLink: scripted test input (no-op unless MOTOLINK_TEST_SCRIPT is set)
+        if (i == 0) {
+            MotoLinkTest_OverrideInput(&input->cur);
+        }
         buttonDiff = input->prev.button ^ input->cur.button;
         input->press.button |= (u16)(buttonDiff & input->cur.button);
         input->rel.button |= (u16)(buttonDiff & input->prev.button);

@@ -86,8 +86,12 @@ typedef enum {
 
 typedef enum {
     /* 0 */ HORSE_EPONA,
-    /* 1 */ HORSE_HNI
+    /* 1 */ HORSE_HNI,
+    /* 2 */ HORSE_MOTO // MotoLink: motorcycle, runs Epona's logic and skeleton but draws its own model
 } HorseType;
+
+// MotoLink: spawn params flag selecting HORSE_MOTO (as 0x8000 selects HORSE_HNI)
+#define ENHORSE_PARAM_MOTO 0x4000
 
 typedef void (*EnHorsePostdrawFunc)(struct EnHorse*, PlayState*);
 
@@ -160,7 +164,9 @@ typedef struct EnHorse {
     /* 0x03D8 */ Vec3f frontLeftHoof;
     /* 0x03E4 */ Vec3f backRightHoof;
     /* 0x03F0 */ Vec3f backLeftHoof;
-} EnHorse; // size = 0x03FC
+    // MotoLink (HORSE_MOTO only)
+    s16 motoWheelRot;
+} EnHorse;
 
 #define EN_HORSE_CHECK_1(horseActor) \
     (((horseActor)->stateFlags & ENHORSE_FLAG_6)  \
