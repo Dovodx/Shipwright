@@ -82,10 +82,10 @@ static const f32 sMotoGearTopFrac[MOTO_NUM_GEARS] = { 0.23f, 0.38f, 0.53f, 0.67f
 
 s32 MotoAudio_AllocVoice(void);
 void MotoAudio_FreeVoice(s32 voice);
-void MotoAudio_SetVoice(s32 voice, f32 rpm, f32 load, f32 gainL, f32 gainR, u8 muffled);
+void MotoAudio_SetVoice(s32 voice, f32 rpm, f32 pitch, f32 load, f32 gainL, f32 gainR, u8 muffled);
 
 // Engine audio: distance at which a bike is at half volume, and the (deliberately low, cartoonish) speed of sound
-// for Doppler, in units/frame. At 100, a bike passing at top speed (24) bends pitch by about +-25%.
+// for Doppler, in units/frame. At 100, a bike passing at top speed (28.8) bends pitch by about +-25%.
 #define MOTO_AUDIO_HALF_DIST 250.0f
 #define MOTO_SPEED_OF_SOUND 100.0f
 
@@ -188,8 +188,7 @@ static void EnHorseMoto_UpdateEngineAudio(EnHorse* this, PlayState* play) {
     pan = (this->actor.projectedW > 1.0f) ? CLAMP(this->actor.projectedPos.x / this->actor.projectedW, -1.0f, 1.0f)
                                           : 0.0f;
     pan *= 0.8f;
-    MotoAudio_SetVoice(this->motoVoice, this->motoRpm * this->motoDoppler,
-                       this->playerControlled ? gMotoThrottle : 0.0f,
+    MotoAudio_SetVoice(this->motoVoice, this->motoRpm, this->motoDoppler, this->playerControlled ? gMotoThrottle : 0.0f,
                        gain * 1.41421356f * Math_CosF((pan + 1.0f) * (M_PI / 4.0f)),
                        gain * 1.41421356f * Math_SinF((pan + 1.0f) * (M_PI / 4.0f)), this->motoUnderwater);
 }

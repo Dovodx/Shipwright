@@ -25,12 +25,13 @@ namespace {
 
 constexpr int kMaxVoices = 4;
 constexpr float kSampleRate = 32000.0f;
-// Headroom so a bike at full volume sits under the game's mix rather than on top of it.
-constexpr float kEngineLevel = 0.32f;
+// Engine level in the game's mix (gMotoLink.Audio.Volume scales it further).
+constexpr float kEngineLevel = 0.5f;
 
 struct VoiceParams {
     bool active = false;
     float rpm = 800.0f;
+    float pitch = 1.0f;
     float load = 0.0f;
     float gainL = 0.0f, gainR = 0.0f;
     bool muffled = false;
@@ -70,14 +71,15 @@ void MotoAudio_FreeVoice(s32 voice) {
     sParams[voice].active = false;
 }
 
-// rpm already includes the Doppler factor; gains are linear 0..1 per channel; muffled = underwater.
-void MotoAudio_SetVoice(s32 voice, f32 rpm, f32 load, f32 gainL, f32 gainR, u8 muffled) {
+// pitch is the Doppler factor (1 = none); gains are linear 0..1 per channel; muffled = underwater.
+void MotoAudio_SetVoice(s32 voice, f32 rpm, f32 pitch, f32 load, f32 gainL, f32 gainR, u8 muffled) {
     if (voice < 0 || voice >= kMaxVoices) {
         return;
     }
     std::lock_guard<std::mutex> lock(sParamsMutex);
     VoiceParams& p = sParams[voice];
     p.rpm = rpm;
+    p.pitch = pitch;
     p.load = load;
     p.gainL = gainL;
     p.gainR = gainR;
@@ -92,7 +94,8 @@ void MotoAudio_Mix(s16* buffer, u32 frames) {
         params = sParams;
     }
     const float volume = AudioSettings_GetMasterVolume() *
-                         (CVarGetInteger(CVAR_SETTING("Volume.SFX"), 100) / 100.0f) * kEngineLevel;
+                         (CVarGetInteger(CVAR_SETTING("Volume.SFX"), 100) / 100.0f) * kEngineLevel *
+                         CVarGetFloat("gMotoLink.Audio.Volume", 1.0f);
     static float mono[2048];
 
     for (int v = 0; v < kMaxVoices; v++) {
@@ -103,7 +106,7 @@ void MotoAudio_Mix(s16* buffer, u32 frames) {
         if (!p.active && voice.gainL < 1e-4f && voice.gainR < 1e-4f) {
             continue;
         }
-        voice.synth.SetTarget(p.rpm, p.load);
+        voice.synth.SetTarget(p.rpm, p.load, p.pitch);
         voice.synth.SetMuffled(p.muffled);
         for (u32 start = 0; start < frames; start += 2048) {
             const u32 n = std::min<u32>(2048, frames - start);

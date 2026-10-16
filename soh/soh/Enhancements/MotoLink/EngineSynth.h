@@ -1,13 +1,17 @@
 #pragma once
-// MotoLink: procedural motorcycle engine sound (inline-four sport bike), rendered in real time.
+// MotoLink: procedural motorcycle engine sound, rendered in real time.
 //
 // Header-only and dependency-free so the same code runs in the game's audio thread (MotoAudio.cpp) and in the
 // offline renderer used to audition and compare it (MotoLink tools/engine_render.cpp).
 //
-// Model: a 4-stroke inline-four fires twice per crank revolution, so pulses arrive at rpm/30 Hz (27 Hz at an
-// 800 rpm idle, 417 Hz at a 12500 rpm redline). Each pulse excites two resonators - a low "exhaust body" and a
-// higher "bark" whose level rises with throttle load - and a little firing-synchronous noise; a low-passed
-// sawtooth at the firing frequency adds the steady tone that carries the pitch.
+// Voiced after recordings of Moto Racer's bike #2 (re/compare/engine_audio/moto_racer): a buzzy, tonal note whose
+// harmonic series sits on a fundamental of ~25 Hz at idle rising to ~175 Hz at the redline (the tach's 12500 rpm),
+// with the harmonic recipe changing with how hard the engine works:
+//   - idle: a broad burble, harmonics 2..20 all strong (5th the strongest), soft;
+//   - loaded / high revs: concentrated on the 2nd and 4th harmonics, falling off fast above the 6th.
+// It is additive synthesis: the measured harmonic levels (in dB, relative to the strongest) are blended between
+// the two recipes and summed. Grit comes from cycle-to-cycle roughness (each engine cycle's amplitude and pitch
+// wobble slightly, as uneven combustion does) and a little noise under load.
 #include <cmath>
 #include <cstdint>
 
@@ -16,13 +20,17 @@ namespace MotoLink {
 class EngineSynth {
   public:
     explicit EngineSynth(float sampleRate) : mSampleRate(sampleRate) {
+        for (int i = 0; i < kTableSize; i++) {
+            mSine[i] = std::sin(2.0f * 3.14159265f * i / kTableSize);
+        }
     }
 
     // Target parameters; the synth glides towards them so per-frame updates never click.
-    // rpm: engine speed (already multiplied by any Doppler factor). load: throttle 0..1.
-    void SetTarget(float rpm, float load) {
+    // rpm: engine speed (tach rpm). load: throttle 0..1. pitch: extra frequency factor (Doppler), 1 = none.
+    void SetTarget(float rpm, float load, float pitch = 1.0f) {
         mTargetRpm = rpm;
         mTargetLoad = load;
+        mTargetPitch = pitch;
     }
 
     // Underwater: low-pass the output (faded in/out so it never clicks).
@@ -36,47 +44,89 @@ class EngineSynth {
         for (uint32_t i = 0; i < frames; i++) {
             mRpm += (mTargetRpm - mRpm) * glide;
             mLoad += (mTargetLoad - mLoad) * glide;
+            mPitch += (mTargetPitch - mPitch) * glide;
+            mMuffle += (mTargetMuffle - mMuffle) * glide;
 
-            const float fire = mRpm / 30.0f;
-            mPhase += fire / mSampleRate;
-            float excite = 0.0f;
-            if (mPhase >= 1.0f) {
-                mPhase -= 1.0f;
-                // Cylinder-to-cylinder variation keeps it from sounding like a pure buzz.
-                excite = (0.75f + 0.5f * Random()) * (0.45f + 0.55f * mLoad);
-                mNoiseEnv = 1.0f;
+            if ((i & 31) == 0) {
+                UpdateHarmonics(); // the recipe changes slowly: every 32 samples is plenty
             }
 
-            const float body = mBody.Process(excite, 85.0f + 0.032f * mRpm, 0.92f, mSampleRate);
-            const float bark = mBark.Process(excite, 650.0f + 0.07f * mRpm, 0.965f, mSampleRate);
+            // One engine cycle per period of the fundamental; each gets its own small amplitude/pitch wobble.
+            const float f0 = Fundamental(mRpm) * mPitch * (1.0f + mCycleJitter);
+            mPhase += f0 / mSampleRate;
+            if (mPhase >= 1.0f) {
+                mPhase -= 1.0f;
+                mCycleGain = 1.0f + kRoughness * (Random() * 2.0f - 1.0f);
+                mCycleJitter = kPitchJitter * (Random() * 2.0f - 1.0f);
+            }
+            mGain += (mCycleGain - mGain) * 0.02f; // smoothed so it roughens rather than clicks
 
-            const float saw = 2.0f * mPhase - 1.0f;
-            mTone += (saw - mTone) * (1.0f - std::exp(-2.0f * 3.14159265f * (2.5f * fire) / mSampleRate));
+            float y = 0.0f;
+            const uint32_t base = (uint32_t)(mPhase * kTableSize);
+            for (int k = 0; k < mNumHarmonics; k++) {
+                y += mAmp[k] * mSine[(base * (k + 1)) & (kTableSize - 1)];
+            }
+            y *= mGain * mLevel;
 
-            mNoiseEnv *= 0.9985f;
-            const float noise = (Random() * 2.0f - 1.0f) * mNoiseEnv * (0.05f + 0.12f * mLoad);
+            // A little breath under load (intake/exhaust noise), pulsing with the engine cycle.
+            const float noise = (Random() * 2.0f - 1.0f) * mLoad * 0.05f * (0.5f + 0.5f * mSine[base & (kTableSize - 1)]);
+            mNoiseLp += (noise - mNoiseLp) * 0.35f;
+            y += mNoiseLp;
 
-            const float y = std::tanh((2.2f * body + (0.5f + 1.1f * mLoad) * bark + 0.35f * mTone + noise) * 0.9f);
+            // Gentle saturation keeps peaks round when everything lines up.
+            y = std::tanh(1.3f * y) / 1.3f;
 
             // ~400 Hz one-pole low-pass, cross-faded in when muffled
-            mMuffle += (mTargetMuffle - mMuffle) * glide;
             mMuffled += (y - mMuffled) * (1.0f - std::exp(-2.0f * 3.14159265f * 400.0f / mSampleRate));
             out[i] = y + (1.6f * mMuffled - y) * mMuffle;
         }
     }
 
+    // Fundamental (harmonic spacing) for a tach rpm: Moto Racer's ~25 Hz at idle to ~175 Hz at the redline.
+    static float Fundamental(float rpm) {
+        return kIdleHz + (rpm - kIdleRpm) * ((kRedlineHz - kIdleHz) / (kRedlineRpm - kIdleRpm));
+    }
+
   private:
-    // Two-pole resonator (decaying sinusoid per impulse); `r` sets the ring time.
-    struct Resonator {
-        float y1 = 0.0f, y2 = 0.0f;
-        float Process(float x, float freq, float r, float sampleRate) {
-            const float w = 2.0f * 3.14159265f * freq / sampleRate;
-            const float y = 2.0f * r * std::cos(w) * y1 - r * r * y2 + x * (1.0f - r);
-            y2 = y1;
-            y1 = y;
-            return y;
+    static constexpr int kTableSize = 4096;
+    static constexpr int kMaxHarmonics = 24;
+    static constexpr float kIdleRpm = 800.0f, kRedlineRpm = 12500.0f;
+    static constexpr float kIdleHz = 25.2f, kRedlineHz = 175.0f;
+    static constexpr float kRoughness = 0.18f;  // per-cycle amplitude wobble
+    static constexpr float kPitchJitter = 0.006f;
+    static constexpr float kMaxFreq = 7000.0f;  // Moto Racer's samples have nothing above ~7 kHz
+
+    // Harmonic levels in dB (harmonics 1..24) measured from Moto Racer: idle and at the rev limiter.
+    static constexpr float kIdleDb[kMaxHarmonics] = { -31, -9,  -13, -13, 0,   -4,  -4,  -8,  -8,  -6,  -9,  -6,
+                                                      -8,  -9,  -11, -10, -9,  -11, -12, -13, -11, -10, -10, -15 };
+    static constexpr float kLoadDb[kMaxHarmonics] = { -17, -4,  -29, 0,   -14, -15, -25, -28, -30, -32, -33, -29,
+                                                      -41, -41, -43, -39, -43, -39, -39, -42, -43, -43, -43, -46 };
+
+    // Blends the two recipes by how hard the engine works (revs and throttle) and sets the output level: idle sits
+    // ~6.5 dB under full load, as in the recordings.
+    void UpdateHarmonics() {
+        const float revs = std::fmin(std::fmax((mRpm - kIdleRpm) / (kRedlineRpm - kIdleRpm), 0.0f), 1.0f);
+        const float work = std::fmin(1.0f, 0.75f * std::sqrt(revs) + 0.45f * mLoad);
+        const float f0 = Fundamental(mRpm) * mPitch;
+        float sum = 0.0f;
+        mNumHarmonics = 0;
+        for (int k = 0; k < kMaxHarmonics; k++) {
+            if (f0 * (k + 1) > kMaxFreq) {
+                break;
+            }
+            const float db = kIdleDb[k] + (kLoadDb[k] - kIdleDb[k]) * work;
+            mAmp[k] = std::pow(10.0f, db / 20.0f);
+            sum += mAmp[k] * mAmp[k];
+            mNumHarmonics = k + 1;
         }
-    };
+        // Normalise to a constant RMS for the recipe, then apply the level for this much work.
+        const float norm = sum > 0.0f ? 1.0f / std::sqrt(sum) : 0.0f;
+        const float level = 0.47f + 0.53f * work; // -6.5 dB at idle
+        for (int k = 0; k < mNumHarmonics; k++) {
+            mAmp[k] *= norm;
+        }
+        mLevel = 0.55f * level;
+    }
 
     float Random() {
         mSeed = mSeed * 1664525u + 1013904223u;
@@ -84,11 +134,15 @@ class EngineSynth {
     }
 
     float mSampleRate;
-    float mTargetRpm = 800.0f, mTargetLoad = 0.0f;
-    float mRpm = 800.0f, mLoad = 0.0f;
-    float mPhase = 0.0f, mTone = 0.0f, mNoiseEnv = 0.0f;
+    float mSine[kTableSize];
+    float mAmp[kMaxHarmonics] = {};
+    int mNumHarmonics = 0;
+    float mLevel = 0.0f;
+    float mTargetRpm = 800.0f, mTargetLoad = 0.0f, mTargetPitch = 1.0f;
+    float mRpm = 800.0f, mLoad = 0.0f, mPitch = 1.0f;
+    float mPhase = 0.0f, mGain = 1.0f, mCycleGain = 1.0f, mCycleJitter = 0.0f;
+    float mNoiseLp = 0.0f;
     float mTargetMuffle = 0.0f, mMuffle = 0.0f, mMuffled = 0.0f;
-    Resonator mBody, mBark;
     uint32_t mSeed = 22222u;
 };
 
