@@ -8,7 +8,7 @@
 #include "soh/OTRGlobals.h"
 #include "soh/ResourceManagerHelpers.h"
 
-void MotoLinkTest_OverrideInput(OSContPad* pad); // soh/Enhancements/MotoLink/MotoLinkTest.cpp
+void MotoLink_FilterInput(OSContPad* pad); // soh/Enhancements/MotoLink/MotoInput.cpp
 
 s32 D_8012D280 = 1;
 
@@ -290,9 +290,9 @@ void PadMgr_ProcessInputs(PadMgr* padMgr) {
                 Fault_AddHungupAndCrash(__FILE__, __LINE__);
         }
 
-        // MotoLink: scripted test input (no-op unless MOTOLINK_TEST_SCRIPT is set)
+        // MotoLink: analog trigger throttle/brake, scripted test input
         if (i == 0) {
-            MotoLinkTest_OverrideInput(&input->cur);
+            MotoLink_FilterInput(&input->cur);
         }
         buttonDiff = input->prev.button ^ input->cur.button;
         input->press.button |= (u16)(buttonDiff & input->cur.button);

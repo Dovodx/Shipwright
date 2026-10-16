@@ -166,6 +166,11 @@ typedef struct EnHorse {
     /* 0x03F0 */ Vec3f backLeftHoof;
     // MotoLink (HORSE_MOTO only)
     s16 motoWheelRot;
+    f32 motoSteer; // real stick X, -1..1 (curStick holds a synthetic throttle stick for the gait logic)
+    f32 motoRpm;
+    u8 motoGear;      // 1-6
+    s8 motoVoice;     // engine audio voice (MotoAudio.cpp), -1 if none
+    f32 motoDoppler;  // smoothed pitch factor for the engine as heard from the camera
 } EnHorse;
 
 #define EN_HORSE_CHECK_1(horseActor) \

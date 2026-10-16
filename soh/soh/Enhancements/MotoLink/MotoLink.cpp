@@ -4,6 +4,8 @@
 
 #include <libultraship/libultraship.h>
 
+#include "soh/Enhancements/game-interactor/GameInteractor.h"
+#include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/ShipInit.hpp"
 
 extern "C" {
@@ -11,6 +13,9 @@ extern "C" {
 #include "variables.h"
 #include "src/overlays/actors/ovl_En_Horse/z_en_horse.h"
 extern PlayState* gPlayState;
+// From z_en_horse_moto.c (its header uses `this` as a parameter name, so it can't be included from C++)
+extern u8 gMotoRiding;
+void EnHorseMoto_DrawTach(PlayState* play);
 }
 
 namespace {
@@ -44,6 +49,18 @@ bool MotoSpawnHandler(std::shared_ptr<Ship::Console> console, const std::vector<
 void RegisterMotoLink() {
     Ship::Context::GetRawInstance()->GetConsole()->AddCommand(
         "moto", { MotoSpawnHandler, "MotoLink: spawn the motorcycle beside Link.", {} });
+
+    // The tachometer replaces Epona's carrots while riding the bike.
+    REGISTER_VB_SHOULD(VB_DRAW_EPONA_BOOST_CARROTS, {
+        if (gMotoRiding) {
+            *should = false;
+        }
+    });
+    GameInteractor::Instance->RegisterGameHook<GameInteractor::OnPlayDrawEnd>([]() {
+        if (gPlayState != nullptr) {
+            EnHorseMoto_DrawTach(gPlayState);
+        }
+    });
 }
 
 static RegisterShipInitFunc initMotoLink(RegisterMotoLink);

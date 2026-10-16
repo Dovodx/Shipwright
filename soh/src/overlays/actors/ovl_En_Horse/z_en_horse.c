@@ -12,6 +12,16 @@
 #include "scenes/overworld/spot09/spot09_scene.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include <assert.h>
+
+// MotoLink: the bike has its own engine sound (MotoAudio.cpp), so it skips the horse's vocal and hoof sounds; the
+// generic dust/slip sounds stay. Every call site in this file has `this` in scope. A function-like macro does not
+// expand recursively, so the inner call reaches the real function.
+#define Audio_PlaySfxGeneral(sfxId, ...)                                                                  \
+    do {                                                                                                \
+        if (this->type != HORSE_MOTO || (sfxId) == NA_SE_EV_HORSE_SANDDUST || (sfxId) == NA_SE_EV_HORSE_SLIP) { \
+            Audio_PlaySfxGeneral(sfxId, __VA_ARGS__);                                                   \
+        }                                                                                               \
+    } while (0)
 #include <libultraship/bridge/consolevariablebridge.h>
 
 #define FLAGS ACTOR_FLAG_UPDATE_CULLING_DISABLED
@@ -785,6 +795,7 @@ void EnHorse_Init(Actor* thisx, PlayState* play2) {
         this->actor.params &= ~ENHORSE_PARAM_MOTO;
         this->type = HORSE_MOTO;
         this->boostSpeed = 14;
+        EnHorseMoto_Init(this, play);
     } else {
         this->type = HORSE_EPONA;
         this->boostSpeed = 14;
@@ -909,6 +920,10 @@ void EnHorse_Init(Actor* thisx, PlayState* play2) {
 void EnHorse_Destroy(Actor* thisx, PlayState* play) {
     EnHorse* this = (EnHorse*)thisx;
 
+    if (this->type == HORSE_MOTO) {
+        EnHorseMoto_Destroy(this, play);
+    }
+
     if (this->stateFlags & ENHORSE_DRAW) {
         Audio_StopSfxByPos(&this->unk_21C);
     }
@@ -998,6 +1013,11 @@ void EnHorse_UpdateSpeed(EnHorse* this, PlayState* play, f32 brakeDecel, f32 bra
     f32 temp_f12;
     f32 traction;
     s16 turn;
+
+    if (this->type == HORSE_MOTO) {
+        EnHorseMoto_UpdateSpeed(this, play, decel);
+        return;
+    }
 
     if (!EnHorse_PlayerCanMove(this, play)) {
         if (this->actor.speedXZ > 8) {
@@ -3071,6 +3091,10 @@ void EnHorse_StickDirection(Vec2f* curStick, f32* stickMag, s16* angle) {
 }
 
 void EnHorse_UpdateStick(EnHorse* this, PlayState* play) {
+    if (this->type == HORSE_MOTO) {
+        EnHorseMoto_UpdateStick(this, play);
+        return;
+    }
     this->lastStick = this->curStick;
     this->curStick.x =
         play->state.input[0].rel.stick_x * (CVarGetInteger(CVAR_ENHANCEMENT("MirroredWorld"), 0) ? -1 : 1);
@@ -3332,6 +3356,11 @@ void EnHorse_CheckBoost(EnHorse* thisx, PlayState* play2) {
     EnHorse* this = (EnHorse*)thisx;
     PlayState* play = play2;
     s32 pad;
+
+    // MotoLink: no spurring the bike; A is reserved for dismounting
+    if (this->type == HORSE_MOTO) {
+        return;
+    }
 
     if (this->action == ENHORSE_ACT_MOUNTED_WALK || this->action == ENHORSE_ACT_MOUNTED_TROT ||
         this->action == ENHORSE_ACT_MOUNTED_GALLOP) {

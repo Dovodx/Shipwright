@@ -9,6 +9,7 @@
 //   console <command...>      run a debug console command (e.g. "console moto")
 //   shot <path>               capture the X display ($DISPLAY) to <path> with ImageMagick
 //   log <text...>             print a marker line to stdout
+//   probe                     print Link's position and, if riding, the mount's speed/yaw/action
 //   quit                      exit the game
 #include <cstdio>
 #include <cstdlib>
@@ -26,7 +27,9 @@
 
 extern "C" {
 #include "functions.h"
+#include "macros.h"
 #include "variables.h"
+#include "src/overlays/actors/ovl_En_Horse/z_en_horse.h"
 extern PlayState* gPlayState;
 }
 
@@ -122,6 +125,17 @@ void RunEvent(const TestEvent& ev) {
         std::string command = "import -silent -window root '" + a[1] + "'";
         int rc = system(command.c_str());
         printf("motolink-test: @%d shot %s rc=%d\n", sFrame, a[1].c_str(), rc);
+    } else if (cmd == "probe" && gPlayState != nullptr) {
+        Player* player = GET_PLAYER(gPlayState);
+        Actor* ride = player->rideActor;
+        printf("motolink-test: @%d probe link=(%.0f,%.0f,%.0f) riding=%d", sFrame, player->actor.world.pos.x,
+               player->actor.world.pos.y, player->actor.world.pos.z, ride != nullptr);
+        if (ride != nullptr) {
+            EnHorse* horse = (EnHorse*)ride;
+            printf(" speed=%.2f yaw=0x%04X action=%d flags=0x%08X", ride->speedXZ, (u16)ride->world.rot.y,
+                   horse->action, horse->stateFlags);
+        }
+        printf("\n");
     } else if (cmd == "log") {
         printf("motolink-test: @%d %s\n", sFrame, JoinFrom(a, 1).c_str());
     } else if (cmd == "quit") {
