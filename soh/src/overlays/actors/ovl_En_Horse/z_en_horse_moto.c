@@ -187,6 +187,16 @@ void MotoAudio_SetVoice(s32 voice, f32 rpm, f32 load, f32 gainL, f32 gainR, u8 m
 #define MOTO_SPEED_OF_SOUND 100.0f
 
 void EnHorseMoto_Init(EnHorse* this, PlayState* play) {
+    Actor* other;
+
+    // There is only one bike: a newly placed one (e.g. Link put on it for a race) replaces any bike already here.
+    for (other = play->actorCtx.actorLists[ACTORCAT_BG].head; other != NULL; other = other->next) {
+        if (other != &this->actor && other->id == ACTOR_EN_HORSE && other->update != NULL &&
+            ((EnHorse*)other)->type == HORSE_MOTO) {
+            Actor_Kill(other);
+        }
+    }
+
     this->actor.room = -1; // one persistent bike per scene: never unloaded with a room
     this->motoVoice = MotoAudio_AllocVoice();
     this->motoRpm = MOTO_IDLE_RPM;

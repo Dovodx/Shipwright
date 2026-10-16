@@ -20,6 +20,7 @@ extern PlayState* gPlayState;
 }
 
 MotoLinkSave gMotoSave;
+static bool sRacingOnBike = false; // per race, not saved (like the race state in eventInf)
 
 namespace {
 
@@ -113,6 +114,11 @@ void RegisterMotoSave() {
         sSectionLoaded = false;
     });
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnSceneSpawnActors>(OnSceneSpawnActors);
+    GameInteractor::Instance->RegisterGameHook<GameInteractor::OnSceneInit>([](int16_t sceneNum) {
+        if (sceneNum != SCENE_LON_LON_RANCH) {
+            sRacingOnBike = false; // the race (and its escape) is over once Link leaves the ranch
+        }
+    });
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnOcarinaSongAction>(OnOcarinaSongAction);
 }
 
@@ -125,6 +131,20 @@ extern "C" void MotoLink_TrackBike(PlayState* play, Actor* bike, bool ridden) {
     gMotoSave.bikeScene = play->sceneNum;
     gMotoSave.bikePos = bike->world.pos;
     gMotoSave.bikeYaw = bike->shape.rot.y;
+}
+
+extern "C" bool MotoLink_PlayerOnBike(PlayState* play) {
+    Player* player = GET_PLAYER(play);
+    return (player->stateFlags1 & PLAYER_STATE1_ON_HORSE) && player->rideActor != nullptr &&
+           player->rideActor->id == ACTOR_EN_HORSE && ((EnHorse*)player->rideActor)->type == HORSE_MOTO;
+}
+
+extern "C" s32 MotoLink_MountParamsFlag(void) {
+    return (gMotoSave.ridingBike || sRacingOnBike) ? ENHORSE_PARAM_MOTO : 0;
+}
+
+extern "C" void MotoLink_SetRacingOnBike(bool racingOnBike) {
+    sRacingOnBike = racingOnBike;
 }
 
 extern "C" bool MotoLink_SetupArrivingOnBike(PlayState* play, Player* player) {

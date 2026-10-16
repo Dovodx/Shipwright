@@ -5,6 +5,7 @@
  */
 
 #include "z_en_ge1.h"
+#include "soh/Enhancements/MotoLink/MotoLink.h"
 #include "vt.h"
 #include "objects/object_ge1/object_ge1.h"
 #include "soh/Enhancements/randomizer/randomizer_entrance.h"
@@ -687,7 +688,8 @@ void EnGe1_Wait_Archery(EnGe1* this, PlayState* play) {
     Player* player = GET_PLAYER(play);
     u16 textId;
 
-    if (!(player->stateFlags1 & PLAYER_STATE1_ON_HORSE)) {
+    // MotoLink: horseback archery needs a horse; on the bike Link has no hands free for a bow
+    if (!(player->stateFlags1 & PLAYER_STATE1_ON_HORSE) || MotoLink_PlayerOnBike(play)) {
         EnGe1_SetTalkAction(this, play, 0x603F, 100.0f, EnGe1_TalkNoHorse_Archery);
     } else {
         if (Flags_GetEventChkInf(EVENTCHKINF_PLAYED_HORSEBACK_ARCHERY)) {

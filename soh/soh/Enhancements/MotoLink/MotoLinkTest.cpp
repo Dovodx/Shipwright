@@ -13,6 +13,8 @@
 //   teleport <x> <y> <z> [yaw] move Link (handles negative coordinates, unlike the console's pos)
 //   bike <x> <y> <z> [yaw]    move the bike in the scene (Link comes along if riding)
 //   spawnactor <id> <params> <x> <y> <z> [yaw]  spawn any actor (accepts negative coordinates)
+//   ingorace                  act as if Ingo's race was just accepted (what En_In does on "yes"): race state 2,
+//                             reload Lon Lon Ranch with the race-start cutscene index
 //   age <0|1>                 set Link's age (0 adult, 1 child) in the save context
 //   eponasong                 act as if Epona's Song was just played (calls Epona, runs song hooks)
 //   eventflag <hex>           set an eventChkInf flag (e.g. 0x69 raises Lake Hylia's water); reload to apply
@@ -32,6 +34,7 @@
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/ShipInit.hpp"
+#include "MotoLink.h"
 
 extern "C" {
 #include "functions.h"
@@ -199,6 +202,14 @@ void RunEvent(const TestEvent& ev) {
                                      a.size() >= 7 ? (s16)std::stoi(a[6], nullptr, 0) : 0, 0,
                                      (s16)std::stoi(a[2], nullptr, 0));
         printf("motolink-test: @%d spawnactor %s -> %s\n", sFrame, a[1].c_str(), spawned ? "ok" : "failed");
+    } else if (cmd == "ingorace" && gPlayState != nullptr) {
+        gSaveContext.eventInf[0] = (gSaveContext.eventInf[0] & ~0x1F) | 2;
+        MotoLink_SetRacingOnBike(MotoLink_PlayerOnBike(gPlayState));
+        gSaveContext.eventInf[0] |= 0x8000;
+        gPlayState->nextEntranceIndex = ENTR_LON_LON_RANCH_ENTRANCE;
+        gSaveContext.nextCutsceneIndex = 0xFFF0;
+        gPlayState->transitionType = TRANS_TYPE_FADE_BLACK;
+        gPlayState->transitionTrigger = TRANS_TRIGGER_START;
     } else if (cmd == "age" && a.size() > 1) {
         gSaveContext.linkAge = std::stoi(a[1]);
     } else if (cmd == "log") {

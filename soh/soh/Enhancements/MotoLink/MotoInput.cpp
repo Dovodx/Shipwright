@@ -64,8 +64,9 @@ extern "C" void MotoLink_FilterInput(OSContPad* pad) {
     gMotoThrottle = TriggerValue(BTN_R, pad->button & BTN_R);
     gMotoBrake = TriggerValue(BTN_Z, pad->button & BTN_Z);
 
-    // While riding, the triggers belong to the bike: no shield (R) or Z-targeting.
+    // While riding, the triggers belong to the bike (no shield or Z-targeting) and Link's hands stay on the bars
+    // (no sword).
     if (gMotoRiding) {
-        pad->button &= ~(BTN_R | BTN_Z);
+        pad->button &= ~(BTN_R | BTN_Z | BTN_B);
     }
 }

@@ -177,7 +177,8 @@ void Horse_SetupInCutscene(PlayState* play, Player* player) {
     } else if ((play->sceneNum == SCENE_LON_LON_RANCH) && ((gSaveContext.eventInf[0] & 0xF) == 6) &&
                (Flags_GetEventChkInf(EVENTCHKINF_EPONA_OBTAINED) == 0) && (DREG(1) == 0)) {
         player->rideActor =
-            Actor_Spawn(&play->actorCtx, play, ACTOR_EN_HORSE, 894.0f, 0.0f, -2084.0f, 0, -0x7FFF, 0, 5);
+            Actor_Spawn(&play->actorCtx, play, ACTOR_EN_HORSE, 894.0f, 0.0f, -2084.0f, 0, -0x7FFF, 0,
+                        5 | MotoLink_MountParamsFlag());
         assert(player->rideActor != NULL);
 
         Actor_MountHorse(play, player, player->rideActor);
@@ -211,7 +212,8 @@ void Horse_SetupInCutscene(PlayState* play, Player* player) {
 
                     player->rideActor =
                         Actor_Spawn(&play->actorCtx, play, ACTOR_EN_HORSE, D_8011F9B8[i].pos.x, D_8011F9B8[i].pos.y,
-                                    D_8011F9B8[i].pos.z, 0, player->actor.world.rot.y, 0, D_8011F9B8[i].type);
+                                    D_8011F9B8[i].pos.z, 0, player->actor.world.rot.y, 0,
+                                    D_8011F9B8[i].type | MotoLink_MountParamsFlag());
                     assert(player->rideActor != NULL);
 
                     Actor_MountHorse(play, player, player->rideActor);
@@ -222,6 +224,10 @@ void Horse_SetupInCutscene(PlayState* play, Player* player) {
 
                     if (((gSaveContext.eventInf[0] & 0x10) >> 4) && D_8011F9B8[i].type == 6) {
                         temp = 0x8000;
+                    }
+                    // MotoLink: races (5/6) on the bike if Link was riding it; horseback archery (8) is Epona's
+                    if (D_8011F9B8[i].type != 8 && MotoLink_MountParamsFlag()) {
+                        temp = MotoLink_MountParamsFlag();
                     }
 
                     player->rideActor =

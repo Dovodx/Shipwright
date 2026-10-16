@@ -34,6 +34,14 @@ bool MotoLink_SetupArrivingOnBike(struct PlayState* play, struct Player* player)
 void MotoLink_TrackBike(struct PlayState* play, struct Actor* bike, bool ridden);
 // Gives Link the key fob (MotoFob.cpp).
 void MotoLink_GiveKeyFob(void);
+// Ingo's races (and the escape that follows) keep using the bike if the first race was accepted on it. Set by
+// En_In when the race is accepted; cleared when Link leaves Lon Lon Ranch.
+void MotoLink_SetRacingOnBike(bool racingOnBike);
+// True while Link is riding the bike (rather than Epona or nothing).
+bool MotoLink_PlayerOnBike(struct PlayState* play);
+// For scripted spawns that put Link on "his horse" (race start/finish, the ranch escape): ENHORSE_PARAM_MOTO if
+// he was on the bike when the scene changed, else 0.
+s32 MotoLink_MountParamsFlag(void);
 
 #ifdef __cplusplus
 }

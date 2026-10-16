@@ -5,6 +5,7 @@
  */
 
 #include "z_en_po_field.h"
+#include "soh/Enhancements/MotoLink/MotoLink.h"
 #include "objects/gameplay_keep/gameplay_keep.h"
 #include "objects/object_po_field/object_po_field.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
@@ -423,13 +424,15 @@ void EnPoField_WaitForSpawn(EnPoField* this, PlayState* play) {
             if (fabsf(sSpawnPositions[i].x - player->actor.world.pos.x) < 150.0f &&
                 fabsf(sSpawnPositions[i].z - player->actor.world.pos.z) < 150.0f) {
                 if (Flags_GetSwitch(play, sSpawnSwitchFlags[i])) {
-                    if (player->stateFlags1 & PLAYER_STATE1_ON_HORSE) { // Player riding Epona
+                    if ((player->stateFlags1 & PLAYER_STATE1_ON_HORSE) &&
+                        !MotoLink_PlayerOnBike(play)) { // Player riding Epona
                         return;
                     } else {
                         this->actor.params = EN_PO_FIELD_SMALL;
                         spawnDist = 300.0f;
                     }
-                } else if (player->stateFlags1 & PLAYER_STATE1_ON_HORSE || Rand_ZeroOne() < 0.4f) {
+                } else if (((player->stateFlags1 & PLAYER_STATE1_ON_HORSE) && !MotoLink_PlayerOnBike(play)) ||
+                           Rand_ZeroOne() < 0.4f) { // MotoLink: on the bike Link can't shoot, so no guaranteed Big Poe
                     this->actor.params = EN_PO_FIELD_BIG;
                     this->spawnFlagIndex = i;
                     spawnDist = 480.0f;

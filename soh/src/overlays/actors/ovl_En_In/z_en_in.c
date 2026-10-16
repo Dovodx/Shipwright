@@ -1,5 +1,6 @@
 #include "z_en_in.h"
 #include "overlays/actors/ovl_En_Horse/z_en_horse.h"
+#include "soh/Enhancements/MotoLink/MotoLink.h"
 #include "objects/object_in/object_in.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 
@@ -675,8 +676,13 @@ void func_80A7A568(EnIn* this, PlayState* play) {
                 return;
             }
             gSaveContext.eventInf[0] =
-                (gSaveContext.eventInf[0] & ~0x10) | (((EnHorse*)GET_PLAYER(play)->rideActor)->type << 4);
+                (gSaveContext.eventInf[0] & ~0x10) |
+                // MotoLink: the bit only holds Epona/Ingo's horse; the bike is remembered by MotoLinkSave.ridingBike
+                ((((EnHorse*)GET_PLAYER(play)->rideActor)->type == HORSE_MOTO ? 0
+                                                                               : ((EnHorse*)GET_PLAYER(play)->rideActor)->type)
+                 << 4);
             gSaveContext.eventInf[0] = (gSaveContext.eventInf[0] & ~0xF) | 2;
+            MotoLink_SetRacingOnBike(((EnHorse*)GET_PLAYER(play)->rideActor)->type == HORSE_MOTO);
             phi_a2 = 2;
             transitionType = TRANS_TYPE_FADE_BLACK;
         } else {
