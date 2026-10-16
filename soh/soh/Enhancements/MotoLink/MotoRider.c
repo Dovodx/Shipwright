@@ -4,7 +4,9 @@
  * Instead of new animation files, the pose is applied procedurally on top of whatever riding animation plays: while
  * Link is on the bike, the limbs listed below take fixed rotations (sitting with knees forward, hands on the bars)
  * in Player's limb-draw callback. Every value can be overridden at runtime with the console variable
- * gMotoLink.Pose.<limb>.<x|y|z> (e.g. "set gMotoLink.Pose.4.z -18000"), which is how the pose is tuned.
+ * gMotoLink.Pose.<limb>.<x|y|z> (e.g. "motoset gMotoLink.Pose.4.z -18000"; use motoset, as the console's "set"
+ * crashes on negative numbers; the stopped foot-down pose uses gMotoLink.FootDown.<limb>.<axis> and the tuck
+ * gMotoLink.Tuck.<limb>.<axis>), which is how the pose is tuned.
  */
 #include <stdio.h>
 
@@ -20,16 +22,28 @@ typedef struct {
     s16 x, y, z;
 } RiderJoint;
 
-// Seated pose (limb-local rotations, binary angles): thighs forward along the tank, shins down to the pegs. Arms
-// keep the riding animation, which already reaches forward. Provisional until the generated bike model fixes the
-// seat, peg and bar positions.
+// Seated pose (limb-local rotations, binary angles), fitted in game to the generated bike (assets/bike/bike_spec.json)
+// with the test driver's "fitrider" stages: head over the tank, wrists at the grips, knees against the tank,
+// ankles over the pegs. Refit after changing the bike's proportions.
 static const RiderJoint sBikePose[] = {
-    { PLAYER_LIMB_R_THIGH, 2371, 4500, -11000 },
-    { PLAYER_LIMB_R_SHIN, 0, 0, 18000 },
+    // Body held still (Epona's riding animations bob and look around; a motorbike rider sits still): the root faces
+    // straight ahead and the waist keeps the riding animation's rest value.
+    { PLAYER_LIMB_ROOT, 0, 0, 0 },
+    { PLAYER_LIMB_WAIST, -21951, -614, -14838 },
+    { PLAYER_LIMB_UPPER, 16408, -6423, 16342 }, // leaning forward over the tank
+    { PLAYER_LIMB_R_THIGH, 7651, 8372, 136 },
+    { PLAYER_LIMB_R_SHIN, 0, 0, 17136 },
     { PLAYER_LIMB_R_FOOT, 2416, 929, -18612 },
-    { PLAYER_LIMB_L_THIGH, -2104, -4500, -11000 },
-    { PLAYER_LIMB_L_SHIN, 0, 0, 18000 },
+    { PLAYER_LIMB_L_THIGH, 3304, 492, -6616 },
+    { PLAYER_LIMB_L_SHIN, 0, 0, 17776 },
     { PLAYER_LIMB_L_FOOT, -1722, -2045, -19000 },
+    // Arms reaching for the grips (Epona's riding animation holds reins low and to one side).
+    { PLAYER_LIMB_L_SHOULDER, 15827, -2922, 20143 },
+    { PLAYER_LIMB_L_FOREARM, 10420, -2432, -6402 },
+    { PLAYER_LIMB_L_HAND, 3835, -7257, -22468 },
+    { PLAYER_LIMB_R_SHOULDER, 1818, 29872, -14383 },
+    { PLAYER_LIMB_R_FOREARM, 1803, 5720, -2295 },
+    { PLAYER_LIMB_R_HAND, 2206, -1164, -13920 },
 };
 
 // Stopped: the left leg goes down to the ground, a little out to the side (the bike tips onto it).
@@ -39,14 +53,20 @@ static const RiderJoint sFootDown[] = {
     { PLAYER_LIMB_L_FOOT, -1722, -2045, -19000 },
 };
 
-// Tuck: the upper body leans forward over the tank with speed (added to the riding animation's torso).
-#define RIDER_TUCK_MAX 3500
+// Tuck: with speed, the upper body and arms blend from the seated pose to this one (head down over the tank,
+// hands still on the bars). Limbs not listed here keep their seated values; console variables
+// gMotoLink.Tuck.<limb>.<axis> override it like the seated pose.
+static const RiderJoint sTuckPose[] = {
+    { PLAYER_LIMB_UPPER, 16408, -11927, 16342 },
+    { PLAYER_LIMB_L_SHOULDER, 9427, -3178, 21935 },
+    { PLAYER_LIMB_L_FOREARM, 10420, -6272, -19714 },
+    { PLAYER_LIMB_R_SHOULDER, 12058, 27824, -11823 },
+    { PLAYER_LIMB_R_FOREARM, 1803, 13912, -28407 },
+};
+
 #define RIDER_FOOT_DOWN_SPEED 0.5f
 
-// Getting on/off: Epona's mount/dismount animations vault Link up to (or down from) a saddle about 40 units higher
-// than the bike's seat. Scaling the animation's vertical root motion down turns the vault into a leg swing.
-#define RIDER_STANDING_PELVIS_Y 3464.0f // root height of Link's standing pose (model units)
-#define RIDER_MOUNT_RISE_SCALE 0.2f
+#define RIDER_SEATED_PELVIS_Y 3377.0f // root height while seated (the riding animation's rest value)
 
 static bool Rider_AnimIs(SkelAnime* skelAnime, const char* path) {
     void* current = skelAnime->animation;
@@ -67,38 +87,81 @@ static bool Rider_IsMountingOrDismounting(Player* player) {
            Rider_AnimIs(&player->skelAnime, dgPlayerAnim_link_uma_right_down);
 }
 
-static s16 Rider_Value(u8 limb, char axis, s16 defaultValue) {
+static s16 Rider_Value(const char* prefix, u8 limb, char axis, s16 defaultValue) {
     char name[48];
 
-    snprintf(name, sizeof(name), "gMotoLink.Pose.%d.%c", limb, axis);
+    snprintf(name, sizeof(name), "%s.%d.%c", prefix, limb, axis);
     return (s16)CVarGetInteger(name, defaultValue);
 }
 
-static bool Rider_Apply(const RiderJoint* pose, s32 count, s32 limbIndex, Vec3s* rot) {
+static const RiderJoint* Rider_Find(const RiderJoint* pose, s32 count, s32 limbIndex) {
     s32 i;
 
     for (i = 0; i < count; i++) {
         if (pose[i].limb == limbIndex) {
-            rot->x = Rider_Value(pose[i].limb, 'x', pose[i].x);
-            rot->y = Rider_Value(pose[i].limb, 'y', pose[i].y);
-            rot->z = Rider_Value(pose[i].limb, 'z', pose[i].z);
-            return true;
+            return &pose[i];
         }
     }
-    return false;
+    return NULL;
+}
+
+static s16 Rider_Axis(const RiderJoint* joint, char axis) {
+    return axis == 'x' ? joint->x : axis == 'y' ? joint->y : joint->z;
+}
+
+static bool Rider_Apply(const char* prefix, const RiderJoint* pose, s32 count, s32 limbIndex, Vec3s* rot) {
+    const RiderJoint* joint = Rider_Find(pose, count, limbIndex);
+
+    if (joint == NULL) {
+        return false;
+    }
+    rot->x = Rider_Value(prefix, joint->limb, 'x', joint->x);
+    rot->y = Rider_Value(prefix, joint->limb, 'y', joint->y);
+    rot->z = Rider_Value(prefix, joint->limb, 'z', joint->z);
+    return true;
+}
+
+// The seated (tuck = false) or tucked pose's value for one joint axis, console overrides included. A limb missing
+// from the tuck table tucks to its seated value.
+static s16 Rider_PoseValue(bool tuck, u8 limb, char axis) {
+    const RiderJoint* seated = Rider_Find(sBikePose, ARRAY_COUNT(sBikePose), limb);
+    const RiderJoint* tucked = Rider_Find(sTuckPose, ARRAY_COUNT(sTuckPose), limb);
+    s16 value;
+
+    if (seated == NULL) {
+        return 0;
+    }
+    value = Rider_Value("gMotoLink.Pose", limb, axis, Rider_Axis(seated, axis));
+    if (tuck) {
+        value = Rider_Value("gMotoLink.Tuck", limb, axis, tucked != NULL ? Rider_Axis(tucked, axis) : value);
+    }
+    return value;
+}
+
+// Seated pose blended towards the tuck by `tuck` (0..1); s16 differences wrap, so the blend takes the short way.
+static bool Rider_ApplyBlended(s32 limbIndex, f32 tuck, Vec3s* rot) {
+    if (Rider_Find(sBikePose, ARRAY_COUNT(sBikePose), limbIndex) == NULL) {
+        return false;
+    }
+    rot->x = Rider_PoseValue(false, limbIndex, 'x');
+    rot->y = Rider_PoseValue(false, limbIndex, 'y');
+    rot->z = Rider_PoseValue(false, limbIndex, 'z');
+    if (tuck > 0.0f) {
+        rot->x += (s16)((s16)(Rider_PoseValue(true, limbIndex, 'x') - rot->x) * tuck);
+        rot->y += (s16)((s16)(Rider_PoseValue(true, limbIndex, 'y') - rot->y) * tuck);
+        rot->z += (s16)((s16)(Rider_PoseValue(true, limbIndex, 'z') - rot->z) * tuck);
+    }
+    return true;
 }
 
 void MotoLink_RiderLimbOverride(PlayState* play, Player* player, s32 limbIndex, Vec3f* pos, Vec3s* rot) {
     EnHorse* bike;
-    s32 i;
+    f32 tuck;
 
-    // Getting on or off, Link is attached to the bike (rideActor) but not yet / no longer riding it.
+    // Getting on or off, Link is attached to the bike (rideActor) but not yet / no longer riding it: Epona's
+    // animations play as they are (their vertical vault is scaled down where Player applies it, see z_player.c).
     if (player->rideActor != NULL && player->rideActor->id == ACTOR_EN_HORSE &&
         ((EnHorse*)player->rideActor)->type == HORSE_MOTO && Rider_IsMountingOrDismounting(player)) {
-        if (limbIndex == PLAYER_LIMB_ROOT) {
-            pos->y = RIDER_STANDING_PELVIS_Y +
-                     (pos->y - RIDER_STANDING_PELVIS_Y) * CVarGetFloat("gMotoLink.Pose.MountRise", RIDER_MOUNT_RISE_SCALE);
-        }
         return;
     }
 
@@ -107,25 +170,31 @@ void MotoLink_RiderLimbOverride(PlayState* play, Player* player, s32 limbIndex, 
     }
     bike = (EnHorse*)player->rideActor;
 
+    // Tuck grows with speed (for tuning, gMotoLink.Pose.TuckPin 1 pins it at gMotoLink.Pose.TuckForce percent).
+    // Console values stay non-negative: the console's "set" stores a negative number as a string, which crashes
+    // when the variable already holds an integer (libultraship ConsoleVariable::SetString).
+    tuck = CVarGetInteger("gMotoLink.Pose.TuckPin", 0)
+               ? CVarGetInteger("gMotoLink.Pose.TuckForce", 0) / 100.0f
+               : CLAMP(bike->actor.speedXZ / 24.0f, 0.0f, 1.0f) * CVarGetFloat("gMotoLink.Pose.Tuck", 1.0f);
+
     if (limbIndex == PLAYER_LIMB_ROOT) {
+        pos->x = 0.0f;
+        pos->y = RIDER_SEATED_PELVIS_Y;
+        pos->z = 0.0f;
+        Rider_ApplyBlended(limbIndex, tuck, rot);
         // Link's origin sits on the ground line under the seat, so tilting here leans him with the bike.
         EnHorseMoto_ApplyRiderTilt(bike, player);
         return;
     }
-    if (limbIndex == PLAYER_LIMB_UPPER) {
-        f32 speedFrac = CLAMP(bike->actor.speedXZ / 24.0f, 0.0f, 1.0f);
-        rot->z += (s16)(CVarGetInteger("gMotoLink.Pose.Tuck", RIDER_TUCK_MAX) * speedFrac);
+    if (bike->actor.speedXZ < RIDER_FOOT_DOWN_SPEED && CVarGetInteger("gMotoLink.Pose.FootDown", 1) &&
+        Rider_Apply("gMotoLink.FootDown", sFootDown, ARRAY_COUNT(sFootDown), limbIndex, rot)) {
         return;
     }
-    if (bike->actor.speedXZ < RIDER_FOOT_DOWN_SPEED && Rider_Apply(sFootDown, ARRAY_COUNT(sFootDown), limbIndex, rot)) {
-        return;
-    }
-    for (i = 0; i < ARRAY_COUNT(sBikePose); i++) {
-        if (sBikePose[i].limb == limbIndex) {
-            rot->x = Rider_Value(sBikePose[i].limb, 'x', sBikePose[i].x);
-            rot->y = Rider_Value(sBikePose[i].limb, 'y', sBikePose[i].y);
-            rot->z = Rider_Value(sBikePose[i].limb, 'z', sBikePose[i].z);
-            return;
-        }
-    }
+    Rider_ApplyBlended(limbIndex, tuck, rot);
+}
+
+// The seated or tucked pose's current value for one joint axis (console override or default); the test driver's
+// pose fitter starts from these.
+s16 MotoLink_RiderPoseValue(u8 limb, char axis, bool tuck) {
+    return Rider_PoseValue(tuck, limb, axis);
 }

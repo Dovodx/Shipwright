@@ -350,7 +350,7 @@ void EnHorseMoto_UpdateStick(EnHorse* this, PlayState* play) {
 // faster it goes; at a standstill it rests tipped slightly onto Link's planted left foot.
 #define MOTO_LEAN_MAX DEGF_TO_BINANG(35.0f)
 #define MOTO_LEAN_FULL_SPEED 10.0f
-#define MOTO_LEAN_STOPPED DEGF_TO_BINANG(-8.0f)
+#define MOTO_LEAN_STOPPED_DEG 8
 
 static void EnHorseMoto_UpdateLean(EnHorse* this) {
     s16 target;
@@ -360,7 +360,8 @@ static void EnHorseMoto_UpdateLean(EnHorse* this) {
     } else if (!this->playerControlled) {
         target = 0;
     } else if (this->actor.speedXZ < 0.5f) {
-        target = MOTO_LEAN_STOPPED;
+        // tipped onto Link's left foot by gMotoLink.Pose.StopLean whole degrees
+        target = DEGF_TO_BINANG(-(f32)CVarGetInteger("gMotoLink.Pose.StopLean", MOTO_LEAN_STOPPED_DEG));
     } else {
         target = (s16)(this->motoSteer * MOTO_LEAN_MAX * CLAMP(this->actor.speedXZ / MOTO_LEAN_FULL_SPEED, 0.0f, 1.0f));
     }

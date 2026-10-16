@@ -12098,8 +12098,15 @@ void Player_UpdateCommon(Player* this, PlayState* play, Input* input) {
         Player_UpdateCamAndSeqModes(play, this);
 
         if (this->skelAnime.movementFlags & 8) {
-            AnimationContext_SetMoveActor(play, &this->actor, &this->skelAnime,
-                                          (this->skelAnime.movementFlags & 4) ? 1.0f : this->ageProperties->unk_08);
+            f32 moveScaleY = (this->skelAnime.movementFlags & 4) ? 1.0f : this->ageProperties->unk_08;
+
+            // MotoLink: Epona's mount/dismount animations vault Link up to (or down from) a saddle about 35 units
+            // higher than the bike's seat; scaled down, the vault becomes a leg swing over the bike.
+            if ((this->rideActor != NULL) && (this->rideActor->id == ACTOR_EN_HORSE) &&
+                (((EnHorse*)this->rideActor)->type == HORSE_MOTO)) {
+                moveScaleY *= CVarGetFloat("gMotoLink.Pose.MountRise", 0.1f);
+            }
+            AnimationContext_SetMoveActor(play, &this->actor, &this->skelAnime, moveScaleY);
         }
 
         Player_UpdateShapeYaw(this, play);

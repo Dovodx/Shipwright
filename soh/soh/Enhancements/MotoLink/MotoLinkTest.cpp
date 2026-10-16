@@ -22,6 +22,12 @@
 //   eponasong                 act as if Epona's Song was just played (calls Epona, runs song hooks)
 //   eventflag <hex>           set an eventChkInf flag (e.g. 0x69 raises Lake Hylia's water); reload to apply
 //   sceneinit                 run the OnSceneInit hooks for the current scene (exercises age-dependent setup)
+//   limbs                     print Link's body part (joint) positions in the ridden bike's space
+//   mount                     place Link beside the bike, ready to get on with A
+//   fitrider <stage>          fit the riding pose (stages: torso, limbs, tucktorso, tuckarms) so the head sits over
+//                             the tank, ankles reach the pegs and wrists the grips
+//                             (pattern search on the gMotoLink.Pose.* CVars, measured in game; the script pauses
+//                             until it finishes, then prints the fitted values)
 //   probe                     print Link's position and, if riding, the mount's speed/yaw/action
 //   quit                      exit the game
 #include <cstdio>
@@ -30,6 +36,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <functional>
 #include <vector>
 
 #include <libultraship/libultraship.h>
@@ -38,6 +45,7 @@
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/ShipInit.hpp"
 #include "MotoLink.h"
+#include "soh/ResourceManagerHelpers.h"
 
 extern "C" {
 #include "functions.h"
@@ -45,6 +53,7 @@ extern "C" {
 #include "variables.h"
 #include "src/overlays/actors/ovl_En_Horse/z_en_horse.h"
 extern PlayState* gPlayState;
+s16 MotoLink_RiderPoseValue(u8 limb, char axis, bool tuck);
 }
 
 namespace {
@@ -139,6 +148,8 @@ std::string JoinFrom(const std::vector<std::string>& args, size_t start) {
     }
     return out;
 }
+
+void FitStart(const std::string& stage);
 
 void RunEvent(const TestEvent& ev) {
     const auto& a = ev.args;
@@ -264,6 +275,48 @@ void RunEvent(const TestEvent& ev) {
             printf(" [%d:%d,%d,%d]", i, j->x, j->y, j->z);
         }
         printf("\n");
+    } else if (cmd == "fitrider" && gPlayState != nullptr) {
+        if (GET_PLAYER(gPlayState)->rideActor == nullptr) {
+            printf("motolink-test: @%d fitrider: not riding, skipped\n", sFrame);
+        } else {
+            FitStart(a.size() > 1 ? a[1] : "limbs");
+        }
+    } else if (cmd == "mount" && gPlayState != nullptr) {
+        // Stand Link beside the bike (its right side), facing it, ready for an A press to get on,
+        // wherever the summon put the bike.
+        Player* player = GET_PLAYER(gPlayState);
+        for (Actor* act = gPlayState->actorCtx.actorLists[ACTORCAT_BG].head; act != nullptr; act = act->next) {
+            if (act->id == ACTOR_EN_HORSE && ((EnHorse*)act)->type == HORSE_MOTO) {
+                s16 yaw = act->shape.rot.y;
+                player->actor.world.pos = { act->world.pos.x - Math_CosS(yaw) * 35.0f, act->world.pos.y,
+                                            act->world.pos.z + Math_SinS(yaw) * 35.0f };
+                player->actor.prevPos = player->actor.world.pos;
+                player->actor.shape.rot.y = player->actor.world.rot.y = player->yaw =
+                    Math_Vec3f_Yaw(&player->actor.world.pos, &act->world.pos); // mounting needs him facing the bike
+                break;
+            }
+        }
+    } else if (cmd == "limbs" && gPlayState != nullptr) {
+        // Body part (joint) positions in the ridden bike's space: +X left, +Y up, +Z forward, origin on the ground
+        // between the wheels. Compare with assets/bike/bike_spec.json (seat, pegs, grips).
+        Player* player = GET_PLAYER(gPlayState);
+        Actor* bike = player->rideActor;
+        static const char* kNames[] = { "waist", "rThigh", "rShin", "rFoot", "lThigh", "lShin", "lFoot", "head",
+                                        "hat", "collar", "lShoulder", "lForearm", "lHand", "rShoulder",
+                                        "rForearm", "rHand", "sheath", "torso" };
+        if (bike != nullptr) {
+            f32 sn = Math_SinS(bike->shape.rot.y), cs = Math_CosS(bike->shape.rot.y);
+            void* anim = player->skelAnime.animation;
+            printf("motolink-test: @%d limbs anim=%s rootY=%d", sFrame,
+                   (anim != nullptr && ResourceMgr_OTRSigCheck((char*)anim)) ? (const char*)anim : "?",
+                   player->skelAnime.jointTable[0].y);
+            for (int i = 0; i < PLAYER_BODYPART_MAX; i++) {
+                Vec3f d = { player->bodyPartsPos[i].x - bike->world.pos.x, player->bodyPartsPos[i].y - bike->world.pos.y,
+                            player->bodyPartsPos[i].z - bike->world.pos.z };
+                printf(" %s=(%.1f,%.1f,%.1f)", kNames[i], d.x * cs - d.z * sn, d.y, d.x * sn + d.z * cs);
+            }
+            printf("\n");
+        }
     } else if (cmd == "age" && a.size() > 1) {
         gSaveContext.linkAge = std::stoi(a[1]);
     } else if (cmd == "log") {
@@ -276,6 +329,210 @@ void RunEvent(const TestEvent& ev) {
     fflush(stdout);
 }
 
+// Body part positions in the ridden bike's space (+X left, +Y up, +Z forward, origin on the ground between the
+// wheels), undoing the bike's yaw (fit with the lean at 0).
+bool BikeSpacePart(int part, Vec3f* out) {
+    Player* player = GET_PLAYER(gPlayState);
+    Actor* bike = player->rideActor;
+    if (bike == nullptr) {
+        return false;
+    }
+    f32 sn = Math_SinS(bike->shape.rot.y), cs = Math_CosS(bike->shape.rot.y);
+    Vec3f d = { player->bodyPartsPos[part].x - bike->world.pos.x, player->bodyPartsPos[part].y - bike->world.pos.y,
+                player->bodyPartsPos[part].z - bike->world.pos.z };
+    *out = { d.x * cs - d.z * sn, d.y, d.x * sn + d.z * cs };
+    return true;
+}
+
+// Rider pose fitter. Each chain (torso, a leg or an arm) is fitted by a pattern search over its joint angles: one
+// angle at a time is nudged by +-step, kept if the chain's score improved, and the step halves after a full pass
+// without improvement. Every trial is measured on the drawn model two frames later. Chains in one stage are
+// independent (separate branches of the skeleton), so they are searched in parallel.
+struct FitParam {
+    int limb;
+    char axis;
+};
+struct FitChain {
+    const char* name;
+    std::vector<FitParam> params;
+    std::function<f32()> score;
+    // search state
+    std::vector<s16> values;
+    size_t param = 0;
+    int dir = 1;
+    int step = 8192; // big first steps: the arms start far from the grips
+    f32 best = -1.0f;
+    bool improved = false;
+    bool done = false;
+};
+
+const char* sFitPrefix = "gMotoLink.Pose";
+
+std::string FitCVar(const FitParam& p) {
+    return std::string(sFitPrefix) + "." + std::to_string(p.limb) + "." + std::string(1, p.axis);
+}
+
+Vec3f Part(int part) {
+    Vec3f v = { 0.0f, 0.0f, 0.0f };
+    BikeSpacePart(part, &v);
+    return v;
+}
+
+f32 DistSq(Vec3f a, Vec3f b) {
+    return SQ(a.x - b.x) + SQ(a.y - b.y) + SQ(a.z - b.z);
+}
+
+// End joint (ankle, wrist) on its target, middle joint (knee, elbow) softly near where it should be.
+std::function<f32()> ReachScore(int endPart, Vec3f end, int midPart, Vec3f mid, f32 midWeight) {
+    return [=]() { return DistSq(Part(endPart), end) + midWeight * DistSq(Part(midPart), mid); };
+}
+
+// Torso: head where wanted, shoulders level and centred.
+std::function<f32()> TorsoScore(Vec3f head) {
+    return [=]() {
+        Vec3f l = Part(PLAYER_BODYPART_L_SHOULDER), r = Part(PLAYER_BODYPART_R_SHOULDER);
+        return DistSq(Part(PLAYER_BODYPART_HEAD), head) + 2.0f * (SQ(l.y - r.y) + SQ(l.x + r.x) + SQ(l.z - r.z));
+    };
+}
+
+void FitPropose(FitChain& c) {
+    s16 v = c.values[c.param] + c.dir * c.step;
+    CVarSetInteger(FitCVar(c.params[c.param]).c_str(), v);
+}
+
+void FitRevert(FitChain& c) {
+    CVarSetInteger(FitCVar(c.params[c.param]).c_str(), c.values[c.param]);
+}
+
+std::vector<FitChain> sFitChains;
+int sFitNextTick = -1;
+int sFitTicks = 0;
+
+// Stages: "torso" / "limbs" fit the seated pose; "tucktorso" / "tuckarms" the full-speed tuck (pinned with
+// gMotoLink.Pose.TuckForce 100 meanwhile). Targets from assets/bike/bike_spec.json: pegs (+-6, 12.4, -9.5), grips
+// (+-7.4, 34.1, 10.6), seat (0, 27, -7). The ankle sits above and behind the peg (ball of the foot on it); the
+// wrist a little behind the grip (palm around it).
+void FitStart(const std::string& stage) {
+    const Vec3f wristL = { 7.0f, 34.5f, 8.0f }, wristR = { -7.0f, 34.5f, 8.0f };
+    const Vec3f elbowL = { 10.0f, 38.0f, 1.0f }, elbowR = { -10.0f, 38.0f, 1.0f };
+    auto arms = [&]() -> std::vector<FitChain> {
+        return {
+            { "rArm",
+              { { PLAYER_LIMB_R_SHOULDER, 'x' }, { PLAYER_LIMB_R_SHOULDER, 'y' }, { PLAYER_LIMB_R_SHOULDER, 'z' },
+                { PLAYER_LIMB_R_FOREARM, 'x' }, { PLAYER_LIMB_R_FOREARM, 'y' }, { PLAYER_LIMB_R_FOREARM, 'z' } },
+              ReachScore(PLAYER_BODYPART_R_HAND, wristR, PLAYER_BODYPART_R_FOREARM, elbowR, 0.1f) },
+            { "lArm",
+              { { PLAYER_LIMB_L_SHOULDER, 'x' }, { PLAYER_LIMB_L_SHOULDER, 'y' }, { PLAYER_LIMB_L_SHOULDER, 'z' },
+                { PLAYER_LIMB_L_FOREARM, 'x' }, { PLAYER_LIMB_L_FOREARM, 'y' }, { PLAYER_LIMB_L_FOREARM, 'z' } },
+              ReachScore(PLAYER_BODYPART_L_HAND, wristL, PLAYER_BODYPART_L_FOREARM, elbowL, 0.1f) },
+        };
+    };
+    const std::vector<FitParam> torso = { { PLAYER_LIMB_UPPER, 'x' }, { PLAYER_LIMB_UPPER, 'y' }, { PLAYER_LIMB_UPPER, 'z' } };
+    bool tuck = stage.rfind("tuck", 0) == 0;
+
+    sFitPrefix = tuck ? "gMotoLink.Tuck" : "gMotoLink.Pose";
+    if (stage == "torso") {
+        sFitChains = { { "torso", torso, TorsoScore({ 0.0f, 48.0f, -2.0f }) } };
+    } else if (stage == "tucktorso") {
+        sFitChains = { { "torso", torso, TorsoScore({ 0.0f, 44.0f, 3.0f }) } };
+    } else if (stage == "tuckarms") {
+        sFitChains = arms();
+    } else {
+        sFitChains = arms();
+        sFitChains.push_back({ "rLeg",
+                               { { PLAYER_LIMB_R_THIGH, 'x' }, { PLAYER_LIMB_R_THIGH, 'y' }, { PLAYER_LIMB_R_THIGH, 'z' },
+                                 { PLAYER_LIMB_R_SHIN, 'z' } },
+                               ReachScore(PLAYER_BODYPART_R_FOOT, { -6.5f, 15.0f, -12.5f }, PLAYER_BODYPART_R_SHIN,
+                                          { -7.5f, 24.0f, 1.0f }, 0.3f) });
+        sFitChains.push_back({ "lLeg",
+                               { { PLAYER_LIMB_L_THIGH, 'x' }, { PLAYER_LIMB_L_THIGH, 'y' }, { PLAYER_LIMB_L_THIGH, 'z' },
+                                 { PLAYER_LIMB_L_SHIN, 'z' } },
+                               ReachScore(PLAYER_BODYPART_L_FOOT, { 6.5f, 15.0f, -12.5f }, PLAYER_BODYPART_L_SHIN,
+                                          { 7.5f, 24.0f, 1.0f }, 0.3f) });
+    }
+    for (auto& c : sFitChains) {
+        if (tuck) {
+            c.step = 2048; // stay near the seated solution, so blending between the two poses doesn't flail
+        }
+        for (auto& p : c.params) {
+            c.values.push_back(MotoLink_RiderPoseValue(p.limb, p.axis, tuck));
+            CVarSetInteger(FitCVar(p).c_str(), c.values.back());
+        }
+    }
+    sFitTicks = 0;
+    sFitNextTick = sFrame + 2;
+}
+
+void FitReport(const char* when) {
+    for (auto& c : sFitChains) {
+        printf("motolink-test: @%d fit %s %s score=%.2f", sFrame, when, c.name, c.score());
+        for (size_t i = 0; i < c.params.size(); i++) {
+            printf(" %s=%d", FitCVar(c.params[i]).c_str(), c.values[i]);
+        }
+        printf("\n");
+    }
+}
+
+// Returns true while fitting (the script waits).
+bool FitUpdate() {
+    if (sFitNextTick < 0) {
+        return false;
+    }
+    if (sFrame < sFitNextTick) {
+        return true;
+    }
+    sFitNextTick = sFrame + 2;
+    if (sFitTicks++ == 0) {
+        FitReport("start");
+    }
+
+    bool allDone = true;
+    for (auto& c : sFitChains) {
+        if (c.done) {
+            continue;
+        }
+        allDone = false;
+        f32 score = c.score();
+        if (c.best < 0.0f) { // baseline measured: start the search
+            c.best = score;
+            FitPropose(c);
+            continue;
+        }
+        if (score < c.best) {
+            // Keep it, and keep moving the same way.
+            c.best = score;
+            c.values[c.param] += c.dir * c.step;
+            c.improved = true;
+            FitPropose(c);
+            continue;
+        }
+        FitRevert(c);
+        if (c.dir > 0) {
+            c.dir = -1;
+        } else {
+            c.dir = 1;
+            if (++c.param == c.params.size()) {
+                c.param = 0;
+                if (!c.improved) {
+                    c.step /= 2;
+                    if (c.step < 32) {
+                        c.done = true;
+                        continue;
+                    }
+                }
+                c.improved = false;
+            }
+        }
+        FitPropose(c);
+    }
+    if (allDone || sFitTicks > 4000) {
+        FitReport("end");
+        sFitNextTick = -1;
+        return false;
+    }
+    return true;
+}
+
 void OnFrame() {
     if (sFrame < 0) {
         if (gPlayState == nullptr) {
@@ -284,6 +541,12 @@ void OnFrame() {
         sFrame = 0;
     } else {
         sFrame++;
+    }
+    if (FitUpdate()) {
+        // The script waits for the fitter; later events keep their spacing relative to when it finishes.
+        for (size_t i = sNextEvent; i < sEvents.size(); i++) {
+            sEvents[i].frame++;
+        }
     }
     while (sNextEvent < sEvents.size() && sEvents[sNextEvent].frame <= sFrame) {
         RunEvent(sEvents[sNextEvent++]);

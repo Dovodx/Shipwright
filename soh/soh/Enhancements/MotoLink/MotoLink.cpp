@@ -81,9 +81,31 @@ bool MotoSpawnHandler(std::shared_ptr<Ship::Console> console, const std::vector<
     return 0;
 }
 
+// motoset <cvar> <integer>: set an integer console variable, negative values included. The console's own "set"
+// stores a negative number as a string, which crashes when the variable already holds an integer
+// (libultraship ConsoleVariable::SetString); the rider pose's joint angles are often negative.
+bool MotoSetHandler(std::shared_ptr<Ship::Console> console, const std::vector<std::string>& args,
+                    std::string* output) {
+    if (args.size() < 3) {
+        *output += "Usage: motoset <cvar> <integer>";
+        return 1;
+    }
+    try {
+        CVarSetInteger(args[1].c_str(), std::stoi(args[2]));
+    } catch (const std::exception&) {
+        *output += "Not an integer: " + args[2];
+        return 1;
+    }
+    *output += args[1] + " = " + args[2];
+    return 0;
+}
+
 void RegisterMotoLink() {
     Ship::Context::GetRawInstance()->GetConsole()->AddCommand(
         "moto", { MotoSpawnHandler, "MotoLink: summon the motorcycle beside Link.", {} });
+    Ship::Context::GetRawInstance()->GetConsole()->AddCommand(
+        "motoset", { MotoSetHandler, "MotoLink: set an integer variable (negative values allowed).",
+                     { { "cvar", Ship::ArgumentType::TEXT }, { "value", Ship::ArgumentType::TEXT } } });
 
     // The tachometer replaces Epona's carrots while riding the bike.
     REGISTER_VB_SHOULD(VB_DRAW_EPONA_BOOST_CARROTS, {
