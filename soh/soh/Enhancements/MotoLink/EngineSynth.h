@@ -25,6 +25,11 @@ class EngineSynth {
         mTargetLoad = load;
     }
 
+    // Underwater: low-pass the output (faded in/out so it never clicks).
+    void SetMuffled(bool muffled) {
+        mTargetMuffle = muffled ? 1.0f : 0.0f;
+    }
+
     // Renders `frames` mono samples (roughly -1..1) into `out`.
     void Render(float* out, uint32_t frames) {
         const float glide = 1.0f - std::exp(-1.0f / (0.012f * mSampleRate)); // ~12 ms time constant
@@ -51,8 +56,12 @@ class EngineSynth {
             mNoiseEnv *= 0.9985f;
             const float noise = (Random() * 2.0f - 1.0f) * mNoiseEnv * (0.05f + 0.12f * mLoad);
 
-            const float y = 2.2f * body + (0.5f + 1.1f * mLoad) * bark + 0.35f * mTone + noise;
-            out[i] = std::tanh(y * 0.9f);
+            const float y = std::tanh((2.2f * body + (0.5f + 1.1f * mLoad) * bark + 0.35f * mTone + noise) * 0.9f);
+
+            // ~400 Hz one-pole low-pass, cross-faded in when muffled
+            mMuffle += (mTargetMuffle - mMuffle) * glide;
+            mMuffled += (y - mMuffled) * (1.0f - std::exp(-2.0f * 3.14159265f * 400.0f / mSampleRate));
+            out[i] = y + (1.6f * mMuffled - y) * mMuffle;
         }
     }
 
@@ -78,6 +87,7 @@ class EngineSynth {
     float mTargetRpm = 800.0f, mTargetLoad = 0.0f;
     float mRpm = 800.0f, mLoad = 0.0f;
     float mPhase = 0.0f, mTone = 0.0f, mNoiseEnv = 0.0f;
+    float mTargetMuffle = 0.0f, mMuffle = 0.0f, mMuffled = 0.0f;
     Resonator mBody, mBark;
     uint32_t mSeed = 22222u;
 };

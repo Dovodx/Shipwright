@@ -2883,9 +2883,16 @@ s32 EnHorse_CalcFloorHeight(EnHorse* this, PlayState* play, Vec3f* pos, Collisio
         return 1; // No floor
     }
 
-    if (WaterBox_GetSurfaceImpl(play, &play->colCtx, pos->x, pos->z, &waterY, &waterBox) == 1 &&
+    // MotoLink: the bike drives underwater, so water is not an obstacle for it
+    if (this->type != HORSE_MOTO &&
+        WaterBox_GetSurfaceImpl(play, &play->colCtx, pos->x, pos->z, &waterY, &waterBox) == 1 &&
         *floorHeight < waterY) {
         return 2; // Water
+    }
+
+    // MotoLink: underwater the bike follows the bottom wherever it goes (river beds, waterfalls)
+    if (ENHORSE_MOTO_FOLLOWS_BOTTOM(this)) {
+        return 0;
     }
 
     if ((*floorPoly)->normal.y * COLPOLY_NORMAL_FRAC < 0.81915206f || // cos(35 degrees)
@@ -2952,7 +2959,9 @@ void EnHorse_CheckFloors(EnHorse* this, PlayState* play) {
     WaterBox* waterBox;
     s32 pad;
 
-    if (WaterBox_GetSurfaceImpl(play, &play->colCtx, this->actor.world.pos.x, this->actor.world.pos.z, &waterHeight,
+    // MotoLink: the bike drives underwater (see EnHorse_CalcFloorHeight)
+    if (this->type != HORSE_MOTO &&
+        WaterBox_GetSurfaceImpl(play, &play->colCtx, this->actor.world.pos.x, this->actor.world.pos.z, &waterHeight,
                                 &waterBox) == 1 &&
         this->actor.floorHeight < waterHeight) {
         EnHorse_ObstructMovement(this, play, 1, galloping);
@@ -2992,6 +3001,8 @@ void EnHorse_CheckFloors(EnHorse* this, PlayState* play) {
     }
 
     floorSlope = Math_FAtan2F(this->yBack - this->yFront, 60.0f) * (0x8000 / M_PI);
+    // MotoLink: underwater the bike follows the bottom wherever it goes (river beds, over waterfalls)
+    bool underwaterBike = ENHORSE_MOTO_FOLLOWS_BOTTOM(this);
     if (this->actor.floorPoly != 0) {
         nx = this->actor.floorPoly->normal.x * COLPOLY_NORMAL_FRAC;
         ny = this->actor.floorPoly->normal.y * COLPOLY_NORMAL_FRAC;
@@ -2999,7 +3010,7 @@ void EnHorse_CheckFloors(EnHorse* this, PlayState* play) {
         pos = frontPos;
         pos.y = this->yFront;
         dist = Math3D_DistPlaneToPos(nx, ny, nz, this->actor.floorPoly->dist, &pos);
-        if ((frontFloor != this->actor.floorPoly) && (this->actor.speedXZ >= 0.0f)) {
+        if ((frontFloor != this->actor.floorPoly) && (this->actor.speedXZ >= 0.0f) && !underwaterBike) {
             if ((!(this->stateFlags & ENHORSE_JUMPING) && dist < -40.0f) ||
                 (this->stateFlags & ENHORSE_JUMPING && dist < -200.0f)) {
                 EnHorse_ObstructMovement(this, play, 4, galloping);
@@ -3010,16 +3021,17 @@ void EnHorse_CheckFloors(EnHorse* this, PlayState* play) {
         pos = backPos;
         pos.y = this->yBack;
         dist = Math3D_DistPlaneToPos(nx, ny, nz, this->actor.floorPoly->dist, &pos);
-        if (((backFloor != this->actor.floorPoly) && (this->actor.speedXZ <= 0.0f) &&
-             !(this->stateFlags & ENHORSE_JUMPING) && (dist < -40.0f)) ||
-            (this->stateFlags & ENHORSE_JUMPING && dist < -200.0f)) {
+        if (!underwaterBike && (((backFloor != this->actor.floorPoly) && (this->actor.speedXZ <= 0.0f) &&
+                                 !(this->stateFlags & ENHORSE_JUMPING) && (dist < -40.0f)) ||
+                                (this->stateFlags & ENHORSE_JUMPING && dist < -200.0f))) {
             EnHorse_ObstructMovement(this, play, 5, galloping);
             return;
         }
 
-        if (ny < 0.81915206f || // cos(35 degrees)
-            SurfaceType_IsHorseBlocked(&play->colCtx, this->actor.floorPoly, this->actor.floorBgId) ||
-            SurfaceType_GetFloorType(&play->colCtx, this->actor.floorPoly, this->actor.floorBgId) == 7) {
+        if (!underwaterBike &&
+            (ny < 0.81915206f || // cos(35 degrees)
+             SurfaceType_IsHorseBlocked(&play->colCtx, this->actor.floorPoly, this->actor.floorBgId) ||
+             SurfaceType_GetFloorType(&play->colCtx, this->actor.floorPoly, this->actor.floorBgId) == 7)) {
             if ((this->actor.speedXZ >= 0.0f)) {
                 EnHorse_ObstructMovement(this, play, 4, galloping);
             } else {
@@ -3191,6 +3203,11 @@ void EnHorse_UpdateBgCheckInfo(EnHorse* this, PlayState* play) {
     }
 
     if (this->stateFlags & ENHORSE_JUMPING || !this->playerControlled) {
+        return;
+    }
+
+    // MotoLink: underwater the bike follows the bottom: no look-ahead for jumps, ledges or refusals
+    if (ENHORSE_MOTO_FOLLOWS_BOTTOM(this)) {
         return;
     }
 
@@ -3707,6 +3724,10 @@ s32 EnHorse_MountSideCheck(EnHorse* this, PlayState* play, Player* player) {
 
 s32 EnHorse_GetMountSide(EnHorse* this, PlayState* play) {
     if (this->action != ENHORSE_ACT_IDLE) {
+        return 0;
+    }
+    // MotoLink: underwater, Link can only get on the bike while standing on the bottom in iron boots
+    if (this->type == HORSE_MOTO && this->motoUnderwater && GET_PLAYER(play)->currentBoots != PLAYER_BOOTS_IRON) {
         return 0;
     }
     // MotoLink: a parked bike has no idle animations to wait out

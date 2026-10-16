@@ -178,7 +178,7 @@ static const f32 sMotoGearTopFrac[MOTO_NUM_GEARS] = { 0.23f, 0.38f, 0.53f, 0.67f
 
 s32 MotoAudio_AllocVoice(void);
 void MotoAudio_FreeVoice(s32 voice);
-void MotoAudio_SetVoice(s32 voice, f32 rpm, f32 load, f32 gainL, f32 gainR);
+void MotoAudio_SetVoice(s32 voice, f32 rpm, f32 load, f32 gainL, f32 gainR, u8 muffled);
 
 // Engine audio: distance at which a bike is at half volume, and the (deliberately low, cartoonish) speed of sound
 // for Doppler, in units/frame. At 100, a bike passing at top speed (24) bends pitch by about +-25%.
@@ -256,7 +256,74 @@ static void EnHorseMoto_UpdateEngineAudio(EnHorse* this, PlayState* play) {
     MotoAudio_SetVoice(this->motoVoice, this->motoRpm * this->motoDoppler,
                        this->playerControlled ? gMotoThrottle : 0.0f,
                        gain * 1.41421356f * Math_CosF((pan + 1.0f) * (M_PI / 4.0f)),
-                       gain * 1.41421356f * Math_SinF((pan + 1.0f) * (M_PI / 4.0f)));
+                       gain * 1.41421356f * Math_SinF((pan + 1.0f) * (M_PI / 4.0f)), this->motoUnderwater);
+}
+
+// Water above the bike's seat counts as submerged.
+#define MOTO_SUBMERGED_DEPTH 30.0f
+// Exhaust outlet in bike space (left side, rear), where underwater bubbles come from.
+static const Vec3f sMotoExhaust = { -3.0f, 20.0f, -24.0f };
+
+// Underwater: the bike drives along the bottom like on land (no buoyancy or drag). While Link rides it, the bike
+// does the part of Player's water handling that riding skips: his depth, the underwater timer the air meter runs on
+// (see Player_GetEnvironmentalHazard), and the muffled underwater sound.
+static void EnHorseMoto_UpdateUnderwater(EnHorse* this, PlayState* play) {
+    WaterBox* waterBox;
+    f32 surface;
+    bool hasWater = WaterBox_GetSurfaceImpl(play, &play->colCtx, this->actor.world.pos.x, this->actor.world.pos.z,
+                                            &surface, &waterBox);
+
+    this->motoUnderwater = hasWater && (surface - this->actor.world.pos.y) > MOTO_SUBMERGED_DEPTH;
+    if (this->motoUnderwater) {
+        this->motoWaterGrace = 20; // ~1 s at 20 Hz
+    } else if (this->motoWaterGrace != 0) {
+        this->motoWaterGrace--;
+    }
+
+    if (this->playerControlled) {
+        Player* player = GET_PLAYER(play);
+        f32 linkDepth = hasWater ? surface - player->actor.world.pos.y : -32000.0f;
+
+        // (Link's own yDistToWater is left alone: Player's water code reacting to it would stop the ride.) His
+        // swimming flags are cleared so that on dismounting Player re-evaluates the water from scratch.
+        player->stateFlags1 &= ~PLAYER_STATE1_IN_WATER;
+        player->stateFlags2 &= ~PLAYER_STATE2_UNDERWATER;
+        if (linkDepth > player->ageProperties->unk_2C) {
+            if (player->underwaterTimer < 300) {
+                player->underwaterTimer++;
+            }
+            Audio_SetBaseFilter(0x20);
+        } else if (player->underwaterTimer != 0) {
+            player->underwaterTimer = 0;
+            Audio_SetBaseFilter(0);
+        }
+    }
+
+    // Underwater scene exits on the floor (the Gerudo Valley river's washout to Lake Hylia) are normally triggered
+    // by Link touching them; riding, it is the bike that reaches the bottom. Link is washed out still on the bike.
+    if (this->playerControlled && this->motoUnderwater && (this->actor.bgCheckFlags & BGCHECKFLAG_GROUND) &&
+        this->actor.floorPoly != NULL && play->transitionTrigger == TRANS_TRIGGER_OFF) {
+        u32 exitIndex = SurfaceType_GetSceneExitIndex(&play->colCtx, this->actor.floorPoly, this->actor.floorBgId);
+
+        if (exitIndex != 0) {
+            play->nextEntranceIndex = play->setupExitList[exitIndex - 1];
+            AREG(6) = 1; // arrive riding (see MotoLink_SetupArrivingOnBike)
+            gSaveContext.retainWeatherMode = 1;
+            Scene_SetTransitionForNextEntrance(play);
+            play->transitionTrigger = TRANS_TRIGGER_START;
+        }
+    }
+
+    if (this->motoUnderwater && (play->gameplayFrames % 3) == 0) {
+        Vec3f pos;
+        f32 s = Math_SinS(this->actor.shape.rot.y);
+        f32 c = Math_CosS(this->actor.shape.rot.y);
+
+        pos.x = this->actor.world.pos.x + sMotoExhaust.x * c + sMotoExhaust.z * s;
+        pos.y = this->actor.world.pos.y + sMotoExhaust.y;
+        pos.z = this->actor.world.pos.z - sMotoExhaust.x * s + sMotoExhaust.z * c;
+        EffectSsBubble_Spawn(play, &pos, 0.0f, 4.0f, 4.0f, 0.4f + 0.2f * (this->motoRpm / MOTO_REDLINE));
+    }
 }
 
 static void EnHorseMoto_UpdateEngine(EnHorse* this) {
@@ -296,6 +363,7 @@ void EnHorseMoto_UpdateStick(EnHorse* this, PlayState* play) {
     } else if (gMotoRiddenBike == this) {
         gMotoRiddenBike = NULL;
     }
+    EnHorseMoto_UpdateUnderwater(this, play);
     EnHorseMoto_UpdateEngine(this);
     EnHorseMoto_UpdateEngineAudio(this, play);
     MotoLink_TrackBike(play, &this->actor, this->playerControlled);
@@ -531,7 +599,7 @@ void EnHorseMoto_DrawTach(PlayState* play) {
         s16 left = OTRGetRectDimensionFromLeftEdge(TACH_CENTER_X - 4);
         OVERLAY_DISP = Tach_Digits(OVERLAY_DISP, bike->motoGear, 1, left, TACH_CENTER_Y + 4);
         gDPSetPrimColor(OVERLAY_DISP++, 0, 0, 255, 255, 255, alpha);
-        OVERLAY_DISP = Tach_Digits(OVERLAY_DISP, (s32)(bike->actor.speedXZ * TACH_MPH_PER_UNIT + 0.5f), 3,
+        OVERLAY_DISP = Tach_Digits(OVERLAY_DISP, (s32)(fabsf(bike->actor.speedXZ) * TACH_MPH_PER_UNIT + 0.5f), 3,
                                    OTRGetRectDimensionFromLeftEdge(TACH_CENTER_X + TACH_RADIUS + 4),
                                    TACH_CENTER_Y + 4);
     }

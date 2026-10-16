@@ -33,6 +33,7 @@ struct VoiceParams {
     float rpm = 800.0f;
     float load = 0.0f;
     float gainL = 0.0f, gainR = 0.0f;
+    bool muffled = false;
 };
 
 struct Voice {
@@ -69,8 +70,8 @@ void MotoAudio_FreeVoice(s32 voice) {
     sParams[voice].active = false;
 }
 
-// rpm already includes the Doppler factor; gains are linear 0..1 per channel.
-void MotoAudio_SetVoice(s32 voice, f32 rpm, f32 load, f32 gainL, f32 gainR) {
+// rpm already includes the Doppler factor; gains are linear 0..1 per channel; muffled = underwater.
+void MotoAudio_SetVoice(s32 voice, f32 rpm, f32 load, f32 gainL, f32 gainR, u8 muffled) {
     if (voice < 0 || voice >= kMaxVoices) {
         return;
     }
@@ -80,6 +81,7 @@ void MotoAudio_SetVoice(s32 voice, f32 rpm, f32 load, f32 gainL, f32 gainR) {
     p.load = load;
     p.gainL = gainL;
     p.gainR = gainR;
+    p.muffled = muffled;
 }
 
 // Adds every active engine voice to an interleaved stereo s16 buffer. Audio thread only.
@@ -102,6 +104,7 @@ void MotoAudio_Mix(s16* buffer, u32 frames) {
             continue;
         }
         voice.synth.SetTarget(p.rpm, p.load);
+        voice.synth.SetMuffled(p.muffled);
         for (u32 start = 0; start < frames; start += 2048) {
             const u32 n = std::min<u32>(2048, frames - start);
             voice.synth.Render(mono, n);

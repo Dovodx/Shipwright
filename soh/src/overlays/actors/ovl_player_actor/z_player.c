@@ -6922,6 +6922,13 @@ void func_8083D36C(PlayState* play, Player* this) {
 }
 
 void func_8083D53C(PlayState* play, Player* this) {
+    // MotoLink: riding skips Player's water checks, so the bike's underwater update (z_en_horse_moto.c) owns the
+    // underwater timer and audio filter while Link is on it
+    if ((this->rideActor != NULL) && (this->rideActor->id == ACTOR_EN_HORSE) &&
+        (((EnHorse*)this->rideActor)->type == HORSE_MOTO)) {
+        return;
+    }
+
     if (this->actor.yDistToWater < this->ageProperties->unk_2C) {
         Audio_SetBaseFilter(0);
         this->underwaterTimer = 0;

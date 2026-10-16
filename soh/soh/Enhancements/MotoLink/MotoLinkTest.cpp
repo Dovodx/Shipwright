@@ -11,8 +11,10 @@
 //   log <text...>             print a marker line to stdout
 //   actors [id]               print live actors (optionally only one actor id): id, pos, yaw, params
 //   teleport <x> <y> <z> [yaw] move Link (handles negative coordinates, unlike the console's pos)
+//   bike <x> <y> <z> [yaw]    move the bike in the scene (Link comes along if riding)
 //   age <0|1>                 set Link's age (0 adult, 1 child) in the save context
 //   eponasong                 act as if Epona's Song was just played (calls Epona, runs song hooks)
+//   eventflag <hex>           set an eventChkInf flag (e.g. 0x69 raises Lake Hylia's water); reload to apply
 //   sceneinit                 run the OnSceneInit hooks for the current scene (exercises age-dependent setup)
 //   probe                     print Link's position and, if riding, the mount's speed/yaw/action
 //   quit                      exit the game
@@ -136,6 +138,9 @@ void RunEvent(const TestEvent& ev) {
         printf("motolink-test: @%d probe link=(%.0f,%.0f,%.0f) riding=%d age=%d childTradeSlot=0x%02X", sFrame,
                player->actor.world.pos.x, player->actor.world.pos.y, player->actor.world.pos.z, ride != nullptr,
                gSaveContext.linkAge, gSaveContext.inventory.items[SLOT_TRADE_CHILD]);
+        printf(" water=%.0f sf1=0x%08X sf2=0x%08X uwTimer=%d timerState=%d timer=%d boots=%d", player->actor.yDistToWater,
+               player->stateFlags1, player->stateFlags2, player->underwaterTimer, gSaveContext.timerState,
+               gSaveContext.timerSeconds, player->currentBoots);
         if (ride != nullptr) {
             EnHorse* horse = (EnHorse*)ride;
             printf(" speed=%.2f yaw=0x%04X action=%d flags=0x%08X", ride->speedXZ, (u16)ride->world.rot.y,
@@ -143,8 +148,8 @@ void RunEvent(const TestEvent& ev) {
         }
         for (Actor* a = gPlayState->actorCtx.actorLists[ACTORCAT_BG].head; a != nullptr; a = a->next) {
             if (a->id == ACTOR_EN_HORSE) {
-                printf(" horse[type=%d pos=(%.0f,%.0f,%.0f)]", ((EnHorse*)a)->type, a->world.pos.x, a->world.pos.y,
-                       a->world.pos.z);
+                printf(" horse[type=%d pos=(%.0f,%.0f,%.0f) floor=%.0f uw=%d]", ((EnHorse*)a)->type, a->world.pos.x,
+                       a->world.pos.y, a->world.pos.z, a->floorHeight, ((EnHorse*)a)->motoUnderwater);
             }
         }
         printf("\n");
@@ -172,8 +177,20 @@ void RunEvent(const TestEvent& ev) {
         gPlayState->msgCtx.lastPlayedSong = OCARINA_SONG_EPONAS;
         DREG(53) = 1; // what z_message does for Epona's Song
         GameInteractor::Instance->ExecuteHooks<GameInteractor::OnOcarinaSongAction>();
+    } else if (cmd == "eventflag" && a.size() > 1) {
+        Flags_SetEventChkInf(std::stoi(a[1], nullptr, 0));
     } else if (cmd == "sceneinit" && gPlayState != nullptr) {
         GameInteractor::Instance->ExecuteHooks<GameInteractor::OnSceneInit>(gPlayState->sceneNum);
+    } else if (cmd == "bike" && a.size() >= 4 && gPlayState != nullptr) {
+        for (Actor* act = gPlayState->actorCtx.actorLists[ACTORCAT_BG].head; act != nullptr; act = act->next) {
+            if (act->id == ACTOR_EN_HORSE && ((EnHorse*)act)->type == HORSE_MOTO) {
+                act->world.pos = { std::stof(a[1]), std::stof(a[2]), std::stof(a[3]) };
+                act->prevPos = act->world.pos;
+                if (a.size() >= 5) {
+                    act->world.rot.y = act->shape.rot.y = (s16)std::stoi(a[4], nullptr, 0);
+                }
+            }
+        }
     } else if (cmd == "age" && a.size() > 1) {
         gSaveContext.linkAge = std::stoi(a[1]);
     } else if (cmd == "log") {

@@ -171,6 +171,13 @@ typedef struct EnHorse {
     u8 motoGear;      // 1-6
     s8 motoVoice;     // engine audio voice (MotoAudio.cpp), -1 if none
     f32 motoDoppler;  // smoothed pitch factor for the engine as heard from the camera
+    u8 motoUnderwater; // the bike is submerged (drives on the bottom; mounting needs iron boots)
+    u8 motoWaterGrace; // frames left in which the bike still follows the bottom after leaving the water
+
+// MotoLink: underwater (and briefly after leaving the water, e.g. over a waterfall's lip) the bike follows the
+// bottom wherever it goes, ignoring the horse's refusal of drops, steep and horse-blocked floors.
+#define ENHORSE_MOTO_FOLLOWS_BOTTOM(horse) \
+    ((horse)->type == HORSE_MOTO && ((horse)->motoUnderwater || (horse)->motoWaterGrace != 0))
 } EnHorse;
 
 #define EN_HORSE_CHECK_1(horseActor) \
