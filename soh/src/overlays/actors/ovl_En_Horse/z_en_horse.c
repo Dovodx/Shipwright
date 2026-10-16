@@ -849,7 +849,9 @@ void EnHorse_Init(Actor* thisx, PlayState* play2) {
     this->actor.focus.pos.y += 70.0f;
     this->playerControlled = false;
 
-    if ((play->sceneNum == SCENE_LON_LON_RANCH) && (gSaveContext.sceneLayer < 4)) {
+    // MotoLink: the bike ignores Epona's ranch/stable story setup (fleeing, night despawns)
+    if (this->type == HORSE_MOTO) {
+    } else if ((play->sceneNum == SCENE_LON_LON_RANCH) && (gSaveContext.sceneLayer < 4)) {
         if (this->type == HORSE_HNI) {
             if (this->actor.world.rot.z == 0 || !IS_DAY) {
                 Actor_Kill(&this->actor);
@@ -903,7 +905,8 @@ void EnHorse_Init(Actor* thisx, PlayState* play2) {
     } else if (this->actor.params == 8) {
         EnHorse_InitHorsebackArchery(this);
         Interface_InitHorsebackArchery(play);
-    } else if (play->sceneNum == SCENE_LON_LON_RANCH && !Flags_GetEventChkInf(EVENTCHKINF_EPONA_OBTAINED) && !DREG(1)) {
+    } else if (play->sceneNum == SCENE_LON_LON_RANCH && !Flags_GetEventChkInf(EVENTCHKINF_EPONA_OBTAINED) && !DREG(1) &&
+               this->type != HORSE_MOTO) {
         EnHorse_InitFleePlayer(this);
     } else {
         if (play->sceneNum == SCENE_LON_LON_BUILDINGS) {
@@ -3706,7 +3709,9 @@ s32 EnHorse_GetMountSide(EnHorse* this, PlayState* play) {
     if (this->action != ENHORSE_ACT_IDLE) {
         return 0;
     }
-    if ((this->animationIdx != ENHORSE_ANIM_IDLE) && (this->animationIdx != ENHORSE_ANIM_WHINNEY)) {
+    // MotoLink: a parked bike has no idle animations to wait out
+    if ((this->animationIdx != ENHORSE_ANIM_IDLE) && (this->animationIdx != ENHORSE_ANIM_WHINNEY) &&
+        this->type != HORSE_MOTO) {
         return 0;
     }
     return EnHorse_MountSideCheck(this, play, GET_PLAYER(play));

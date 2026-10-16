@@ -3,6 +3,7 @@
 #include <assert.h>
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
+#include "soh/Enhancements/MotoLink/MotoLink.h"
 
 s32 Horse_CanSpawn(s32 scene) {
     s32 validScenes[] = { SCENE_HYRULE_FIELD, SCENE_LAKE_HYLIA, SCENE_GERUDO_VALLEY, SCENE_GERUDOS_FORTRESS,
@@ -50,6 +51,11 @@ void Horse_SetupInGameplay(PlayState* play, Player* player) {
         { SCENE_GERUDO_VALLEY, 2566, -259, 767, 0, 2 }, { SCENE_GERUDOS_FORTRESS, -328, 10, 953, 0, 2 },
         { SCENE_LON_LON_RANCH, 928, 0, -2280, 0, 2 },
     };
+
+    // MotoLink: riding the bike through an exit brings the bike, not Epona (one mount at a time)
+    if (MotoLink_SetupArrivingOnBike(play, player)) {
+        return;
+    }
 
     if ((AREG(6) != 0) && (Flags_GetEventChkInf(EVENTCHKINF_EPONA_OBTAINED) || (DREG(1) != 0))) {
         player->rideActor = Actor_Spawn(&play->actorCtx, play, ACTOR_EN_HORSE, player->actor.world.pos.x,

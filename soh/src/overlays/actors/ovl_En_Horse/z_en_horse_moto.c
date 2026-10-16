@@ -13,6 +13,7 @@
 #include "z_en_horse_moto.h"
 #include "textures/parameter_static/parameter_static.h"
 #include "soh/OTRGlobals.h"
+#include "soh/Enhancements/MotoLink/MotoLink.h"
 
 Gfx* Gfx_TextureI8(Gfx* displayListHead, void* texture, s16 textureWidth, s16 textureHeight, s16 rectLeft, s16 rectTop,
                    s16 rectWidth, s16 rectHeight, u16 dsdx, u16 dtdy);
@@ -185,6 +186,7 @@ void MotoAudio_SetVoice(s32 voice, f32 rpm, f32 load, f32 gainL, f32 gainR);
 #define MOTO_SPEED_OF_SOUND 100.0f
 
 void EnHorseMoto_Init(EnHorse* this, PlayState* play) {
+    this->actor.room = -1; // one persistent bike per scene: never unloaded with a room
     this->motoVoice = MotoAudio_AllocVoice();
     this->motoRpm = MOTO_IDLE_RPM;
     this->motoGear = 1;
@@ -296,6 +298,7 @@ void EnHorseMoto_UpdateStick(EnHorse* this, PlayState* play) {
     }
     EnHorseMoto_UpdateEngine(this);
     EnHorseMoto_UpdateEngineAudio(this, play);
+    MotoLink_TrackBike(play, &this->actor, this->playerControlled);
 }
 
 // Replaces EnHorse_UpdateSpeed's stick-driven speed and steering for every mounted gait.

@@ -473,6 +473,19 @@ static const ALIGN_ASSET(2) char gRocsFeatherItemNameGERTex[] = dgRocsFeatherIte
 #define dgRocsFeatherItemNameFRATex "__OTR__textures/item_name_static/gRocsFeatherItemNameFRATex"
 static const ALIGN_ASSET(2) char gRocsFeatherItemNameFRATex[] = dgRocsFeatherItemNameFRATex;
 
+// MotoLink key fob
+#define dgKeyFobTex "__OTR__textures/icon_item_static/gKeyFobTex"
+static const ALIGN_ASSET(2) char gKeyFobTex[] = dgKeyFobTex;
+
+#define dgKeyFobItemNameENGTex "__OTR__textures/item_name_static/gKeyFobItemNameENGTex"
+static const ALIGN_ASSET(2) char gKeyFobItemNameENGTex[] = dgKeyFobItemNameENGTex;
+
+#define dgKeyFobItemNameGERTex "__OTR__textures/item_name_static/gKeyFobItemNameGERTex"
+static const ALIGN_ASSET(2) char gKeyFobItemNameGERTex[] = dgKeyFobItemNameGERTex;
+
+#define dgKeyFobItemNameFRATex "__OTR__textures/item_name_static/gKeyFobItemNameFRATex"
+static const ALIGN_ASSET(2) char gKeyFobItemNameFRATex[] = dgKeyFobItemNameFRATex;
+
 #define dgEmptyTexture "__OTR__textures/virtual/gEmptyTexture"
 static const ALIGN_ASSET(2) char gEmptyTexture[] = dgEmptyTexture;
 

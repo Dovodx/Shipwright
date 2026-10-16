@@ -199,6 +199,7 @@ void* gItemIcons[] = {
     "", // ITEM_CUSTOM
     // Start custom items
     gRocsFeatherTex,
+    gKeyFobTex, // MotoLink
 };
 
 // Used to map item IDs to inventory slots

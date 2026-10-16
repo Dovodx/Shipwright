@@ -9,6 +9,11 @@
 //   console <command...>      run a debug console command (e.g. "console moto")
 //   shot <path>               capture the X display ($DISPLAY) to <path> with ImageMagick
 //   log <text...>             print a marker line to stdout
+//   actors [id]               print live actors (optionally only one actor id): id, pos, yaw, params
+//   teleport <x> <y> <z> [yaw] move Link (handles negative coordinates, unlike the console's pos)
+//   age <0|1>                 set Link's age (0 adult, 1 child) in the save context
+//   eponasong                 act as if Epona's Song was just played (calls Epona, runs song hooks)
+//   sceneinit                 run the OnSceneInit hooks for the current scene (exercises age-dependent setup)
 //   probe                     print Link's position and, if riding, the mount's speed/yaw/action
 //   quit                      exit the game
 #include <cstdio>
@@ -128,14 +133,49 @@ void RunEvent(const TestEvent& ev) {
     } else if (cmd == "probe" && gPlayState != nullptr) {
         Player* player = GET_PLAYER(gPlayState);
         Actor* ride = player->rideActor;
-        printf("motolink-test: @%d probe link=(%.0f,%.0f,%.0f) riding=%d", sFrame, player->actor.world.pos.x,
-               player->actor.world.pos.y, player->actor.world.pos.z, ride != nullptr);
+        printf("motolink-test: @%d probe link=(%.0f,%.0f,%.0f) riding=%d age=%d childTradeSlot=0x%02X", sFrame,
+               player->actor.world.pos.x, player->actor.world.pos.y, player->actor.world.pos.z, ride != nullptr,
+               gSaveContext.linkAge, gSaveContext.inventory.items[SLOT_TRADE_CHILD]);
         if (ride != nullptr) {
             EnHorse* horse = (EnHorse*)ride;
             printf(" speed=%.2f yaw=0x%04X action=%d flags=0x%08X", ride->speedXZ, (u16)ride->world.rot.y,
                    horse->action, horse->stateFlags);
         }
+        for (Actor* a = gPlayState->actorCtx.actorLists[ACTORCAT_BG].head; a != nullptr; a = a->next) {
+            if (a->id == ACTOR_EN_HORSE) {
+                printf(" horse[type=%d pos=(%.0f,%.0f,%.0f)]", ((EnHorse*)a)->type, a->world.pos.x, a->world.pos.y,
+                       a->world.pos.z);
+            }
+        }
         printf("\n");
+    } else if (cmd == "actors" && gPlayState != nullptr) {
+        int filter = a.size() > 1 ? std::stoi(a[1], nullptr, 0) : -1;
+        printf("motolink-test: @%d actors scene=%d room=%d\n", sFrame, gPlayState->sceneNum,
+               gPlayState->roomCtx.curRoom.num);
+        for (int cat = 0; cat < ACTORCAT_MAX; cat++) {
+            for (Actor* act = gPlayState->actorCtx.actorLists[cat].head; act != nullptr; act = act->next) {
+                if (filter < 0 || act->id == filter) {
+                    printf("motolink-test:   actor id=0x%04X cat=%d pos=(%.0f,%.0f,%.0f) yaw=0x%04X params=0x%04X\n",
+                           (u16)act->id, cat, act->world.pos.x, act->world.pos.y, act->world.pos.z,
+                           (u16)act->shape.rot.y, (u16)act->params);
+                }
+            }
+        }
+    } else if (cmd == "teleport" && a.size() >= 4 && gPlayState != nullptr) {
+        Player* player = GET_PLAYER(gPlayState);
+        player->actor.world.pos = { std::stof(a[1]), std::stof(a[2]), std::stof(a[3]) };
+        player->actor.prevPos = player->actor.home.pos = player->actor.world.pos;
+        if (a.size() >= 5) {
+            player->actor.shape.rot.y = player->actor.world.rot.y = player->yaw = (s16)std::stoi(a[4], nullptr, 0);
+        }
+    } else if (cmd == "eponasong" && gPlayState != nullptr) {
+        gPlayState->msgCtx.lastPlayedSong = OCARINA_SONG_EPONAS;
+        DREG(53) = 1; // what z_message does for Epona's Song
+        GameInteractor::Instance->ExecuteHooks<GameInteractor::OnOcarinaSongAction>();
+    } else if (cmd == "sceneinit" && gPlayState != nullptr) {
+        GameInteractor::Instance->ExecuteHooks<GameInteractor::OnSceneInit>(gPlayState->sceneNum);
+    } else if (cmd == "age" && a.size() > 1) {
+        gSaveContext.linkAge = std::stoi(a[1]);
     } else if (cmd == "log") {
         printf("motolink-test: @%d %s\n", sFrame, JoinFrom(a, 1).c_str());
     } else if (cmd == "quit") {

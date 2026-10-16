@@ -13713,7 +13713,8 @@ void Player_Action_8084D3E4(Player* this, PlayState* play) {
         this->actor.parent = NULL;
         AREG(6) = 0;
 
-        if (Flags_GetEventChkInf(EVENTCHKINF_EPONA_OBTAINED) || (DREG(1) != 0)) {
+        // MotoLink: the bike tracks its own position (MotoLink_TrackBike)
+        if ((Flags_GetEventChkInf(EVENTCHKINF_EPONA_OBTAINED) || (DREG(1) != 0)) && rideActor->type != HORSE_MOTO) {
             gSaveContext.horseData.pos.x = rideActor->actor.world.pos.x;
             gSaveContext.horseData.pos.y = rideActor->actor.world.pos.y;
             gSaveContext.horseData.pos.z = rideActor->actor.world.pos.z;
