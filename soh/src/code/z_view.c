@@ -7,6 +7,8 @@
 
 #include "soh/frame_interpolation.h"
 
+extern u8 gMotoLinkCamContinuous; // MotoLink: set by EnHorseMoto_AdjustView
+
 vu32 D_8012ABF0 = true;
 
 void View_ViewportToVp(Vp* dest, Viewport* src) {
@@ -398,6 +400,12 @@ s32 func_800AAA9C(View* view) {
     }
 
     // Ignore camera heuristics when paused as the camera moves a lot in Kaleido, allowing it to be interpolate
+    // MotoLink: the bike's chase camera moves fast but smoothly; at speed these heuristics would take some of its
+    // frames for cuts and skip interpolating them, which judders. While it runs uninterrupted, never cut.
+    if (gMotoLinkCamContinuous) {
+        dont_interpolate = false;
+    }
+
     if (dont_interpolate && R_PAUSE_MENU_MODE == 0) {
         FrameInterpolation_DontInterpolateCamera();
     }

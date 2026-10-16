@@ -56,7 +56,7 @@ extern "C" {
 #include "variables.h"
 #include "src/overlays/actors/ovl_En_Horse/z_en_horse.h"
 extern PlayState* gPlayState;
-s16 MotoLink_RiderPoseValue(u8 limb, char axis, bool tuck);
+s16 MotoLink_RiderPoseValue(u8 limb, char axis, s32 set);
 }
 
 namespace {
@@ -207,9 +207,10 @@ void RunEvent(const TestEvent& ev) {
         for (int cat = 0; cat < ACTORCAT_MAX; cat++) {
             for (Actor* act = gPlayState->actorCtx.actorLists[cat].head; act != nullptr; act = act->next) {
                 if (filter < 0 || act->id == filter) {
-                    printf("motolink-test:   actor id=0x%04X cat=%d pos=(%.0f,%.0f,%.0f) yaw=0x%04X params=0x%04X\n",
+                    printf("motolink-test:   actor id=0x%04X cat=%d pos=(%.0f,%.0f,%.0f) yaw=0x%04X params=0x%04X "
+                           "health=%d\n",
                            (u16)act->id, cat, act->world.pos.x, act->world.pos.y, act->world.pos.z,
-                           (u16)act->shape.rot.y, (u16)act->params);
+                           (u16)act->shape.rot.y, (u16)act->params, act->colChkInfo.health);
                 }
             }
         }
@@ -529,8 +530,9 @@ void FitStart(const std::string& stage) {
     };
     const std::vector<FitParam> torso = { { PLAYER_LIMB_UPPER, 'x' }, { PLAYER_LIMB_UPPER, 'y' }, { PLAYER_LIMB_UPPER, 'z' } };
     bool tuck = stage.rfind("tuck", 0) == 0;
+    bool footDown = stage.rfind("footdown", 0) == 0;
 
-    sFitPrefix = tuck ? "gMotoLink.Tuck" : "gMotoLink.Pose";
+    sFitPrefix = tuck ? "gMotoLink.Tuck" : footDown ? "gMotoLink.FootDown" : "gMotoLink.Pose";
     if (stage == "torso") {
         sFitChains = { { "torso", torso, TorsoScore({ 0.0f, 48.0f, -2.0f }) } };
     } else if (stage == "tucktorso") {
@@ -542,6 +544,17 @@ void FitStart(const std::string& stage) {
             { "rFoot", { { PLAYER_LIMB_R_FOOT, 'x' }, { PLAYER_LIMB_R_FOOT, 'y' }, { PLAYER_LIMB_R_FOOT, 'z' } },
               FootScore(1) },
         };
+    } else if (stage == "footdown") {
+        // Stopped, the left leg reaches down beside the bike: ankle at standing height (5) on the ground a little out
+        // from the bike, knee bent above it.
+        sFitChains = { { "lLegDown",
+                         { { PLAYER_LIMB_L_THIGH, 'x' }, { PLAYER_LIMB_L_THIGH, 'y' }, { PLAYER_LIMB_L_THIGH, 'z' },
+                           { PLAYER_LIMB_L_SHIN, 'z' } },
+                         ReachScore(PLAYER_BODYPART_L_FOOT, { 13.0f, 5.2f, -6.0f }, PLAYER_BODYPART_L_SHIN,
+                                    { 11.0f, 16.0f, 0.0f }, 0.2f) } };
+    } else if (stage == "footdownfoot") {
+        sFitChains = { { "lFootDown", { { PLAYER_LIMB_L_FOOT, 'x' }, { PLAYER_LIMB_L_FOOT, 'y' }, { PLAYER_LIMB_L_FOOT, 'z' } },
+                         FootScore(0) } };
     } else if (stage == "tuckarms") {
         sFitChains = arms();
     } else {
@@ -562,7 +575,7 @@ void FitStart(const std::string& stage) {
             c.step = 2048; // stay near the seated solution, so blending between the two poses doesn't flail
         }
         for (auto& p : c.params) {
-            c.values.push_back(MotoLink_RiderPoseValue(p.limb, p.axis, tuck));
+            c.values.push_back(MotoLink_RiderPoseValue(p.limb, p.axis, tuck ? 1 : footDown ? 2 : 0));
             CVarSetInteger(FitCVar(p).c_str(), c.values.back());
         }
     }

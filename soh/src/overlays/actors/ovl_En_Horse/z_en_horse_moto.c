@@ -111,6 +111,11 @@ void EnHorseMoto_Init(EnHorse* this, PlayState* play) {
 // the bike, tall enough to cover the rider (Epona's are 20 wide and 70 tall). The bike has no sphere set: Epona's
 // follows her skeleton, which the bike never draws.
 void EnHorseMoto_InitColliders(EnHorse* this) {
+    // The front cylinder's attack (unused by Epona) hits enemies the bike runs into, for a little damage: it
+    // counts as a Kokiri Sword slash (enemies' damage tables give that 1 damage or so).
+    this->cyl1.info.toucher.dmgFlags = DMG_SLASH_KOKIRI;
+    this->cyl1.info.toucher.damage = 1;
+    this->cyl1.info.toucherFlags = TOUCH_ON | TOUCH_SFX_NORMAL;
     this->cyl1.dim.radius = this->cyl2.dim.radius = MOTO_COLLIDER_RADIUS;
     this->cyl1.dim.height = this->cyl2.dim.height = MOTO_COLLIDER_HEIGHT;
     this->actor.focus.pos.y = this->actor.world.pos.y + MOTO_SEAT_Y;
@@ -126,6 +131,13 @@ void EnHorseMoto_PlaceColliders(EnHorse* this) {
     this->cyl1.dim.pos.z += (s16)(c * MOTO_COLLIDER_FRONT_Z);
     this->cyl2.dim.pos.x += (s16)(s * MOTO_COLLIDER_REAR_Z);
     this->cyl2.dim.pos.z += (s16)(c * MOTO_COLLIDER_REAR_Z);
+
+    // Hitting enemies: only when ridden and moving (from 20 km/h, like crash damage)
+    if (this->playerControlled && this->actor.speedXZ > MOTO_KMH(20.0f)) {
+        this->cyl1.base.atFlags |= AT_ON;
+    } else {
+        this->cyl1.base.atFlags &= ~AT_ON;
+    }
 }
 
 void EnHorseMoto_Destroy(EnHorse* this, PlayState* play) {
@@ -353,7 +365,7 @@ void EnHorseMoto_UpdateStick(EnHorse* this, PlayState* play) {
 // faster it goes; at a standstill it rests tipped slightly onto Link's planted left foot.
 #define MOTO_LEAN_MAX DEGF_TO_BINANG(35.0f)
 #define MOTO_LEAN_FULL_SPEED 10.0f
-#define MOTO_LEAN_STOPPED_DEG 8
+#define MOTO_LEAN_STOPPED_DEG 12
 
 static void EnHorseMoto_UpdateLean(EnHorse* this) {
     s16 target;
@@ -409,7 +421,7 @@ void EnHorseMoto_UpdateSpeed(EnHorse* this, PlayState* play, f32 decel) {
  *   - airborne: 25% crash
  *   - c > 0.98 above 100 km/h: crash; c > 0.5 above 80 km/h: 25% crash
  *   - otherwise a scrape: lose 25% of speed, and 70% more when hitting the wall at a steep angle.
- * Solid actors (trees, rocks, NPCs, enemies) follow Moto Racer's bike-vs-bike rules with the actor as a bike
+ * Solid actors (trees, rocks, NPCs) follow Moto Racer's bike-vs-bike rules with the actor as a bike
  * standing still: a hard hit (above 90 km/h, or any hit in a wheelie) crashes 25% of the time, otherwise it is a
  * bump that costs 10% of speed. The dice roll once per new contact, and their chance is a CVar.
  *
@@ -417,7 +429,6 @@ void EnHorseMoto_UpdateSpeed(EnHorse* this, PlayState* play, f32 decel) {
  * own large knockback, so he lands and gets up as from any big hit (a quarter heart of damage); the bike falls onto the side it was leaning to and
  * lies there idling until it rights itself. It is not respawned anywhere: Link walks back or uses the fob.
  */
-#define MOTO_KMH(kmh) ((kmh) * MOTO_UNITS_PER_KMH)
 #define MOTO_CRASH_CHANCE 25         // percent, for Moto Racer's "rand & 3" rolls
 #define MOTO_FLING_SCALE 1.0f        // Link keeps the bike's speed...
 #define MOTO_FLING_UP 0.35f          // ...and is thrown up at this fraction of it
@@ -531,9 +542,7 @@ static bool EnHorseMoto_IsSolid(Actor* other) {
         case ACTORCAT_BG:
         case ACTORCAT_PROP:
         case ACTORCAT_NPC:
-        case ACTORCAT_ENEMY:
-        case ACTORCAT_BOSS:
-            return true;
+            return true; // enemies don't crash the bike: it hits them instead (EnHorseMoto_PlaceColliders)
         default:
             return false;
     }
@@ -700,21 +709,32 @@ void EnHorseMoto_UpdateJump(EnHorse* this, PlayState* play) {
 #define MOTO_CAM_Y_FOLLOW 0.35f   // same for the bike's height (jumps, slopes)
 #define MOTO_CAM_FOV 60.0f
 
+#define MOTO_CAM_CUT_DIST 150.0f   // the bike moving further than this in a frame is a teleport: let the view cut
+
 static s16 sMotoCamYaw;
 static f32 sMotoCamY;
 static u32 sMotoCamFrame;
 static u8 sMotoCamActive;
+static Vec3f sMotoCamLastBikePos;
+// True while the chase camera runs uninterrupted, so the view's cut detection (z_view.c) doesn't mistake its fast
+// but smooth movement for camera cuts (which skip frame interpolation and judder).
+u8 gMotoLinkCamContinuous;
 
 void EnHorseMoto_AdjustView(PlayState* play) {
     EnHorse* bike = gMotoRiddenBike;
     View* view = &play->view;
     f32 s, c, back, ahead;
 
+    gMotoLinkCamContinuous = false;
     if (bike == NULL || !gMotoRiding || play->activeCamera != CAM_ID_MAIN || play->csCtx.state != CS_STATE_IDLE ||
         !CVarGetInteger("gMotoLink.Camera.Chase", 1)) {
         sMotoCamActive = false;
         return;
     }
+    if (sMotoCamActive && Math_Vec3f_DistXYZ(&bike->actor.world.pos, &sMotoCamLastBikePos) < MOTO_CAM_CUT_DIST) {
+        gMotoLinkCamContinuous = true;
+    }
+    sMotoCamLastBikePos = bike->actor.world.pos;
     if (!sMotoCamActive) {
         sMotoCamYaw = bike->actor.world.rot.y;
         sMotoCamY = bike->actor.world.pos.y;

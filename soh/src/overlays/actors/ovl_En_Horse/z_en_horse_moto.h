@@ -11,6 +11,7 @@
 // Real-world speed scale (tachometer readout, crash thresholds): 24 units/frame is Moto Racer bike #2's 277 km/h
 // (172 mph), so the bike's 28.8 reads as ~206 mph.
 #define MOTO_UNITS_PER_KMH (24.0f / 277.0f)
+#define MOTO_KMH(kmh) ((kmh) * MOTO_UNITS_PER_KMH)
 
 // Analog trigger state for controller 1, 0..1, written each frame by MotoLink_FilterInput (MotoInput.cpp).
 extern f32 gMotoThrottle;

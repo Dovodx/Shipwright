@@ -48,11 +48,11 @@ static const RiderJoint sBikePose[] = {
     { PLAYER_LIMB_R_HAND, 2206, -1164, -13920 },
 };
 
-// Stopped: the left leg goes down to the ground, a little out to the side (the bike tips onto it).
+// Stopped: the left leg goes down to the ground beside the bike, which tips onto it (MOTO_LEAN_STOPPED_DEG).
 static const RiderJoint sFootDown[] = {
-    { PLAYER_LIMB_L_THIGH, -2104, -6500, -3886 },
-    { PLAYER_LIMB_L_SHIN, 0, 0, 3000 },
-    { PLAYER_LIMB_L_FOOT, -1722, -2045, -19000 },
+    { PLAYER_LIMB_L_THIGH, 200, -1636, -4142 }, // fitted ("fitrider footdown"): ankle on the ground beside the bike
+    { PLAYER_LIMB_L_SHIN, 0, 0, 5048 },
+    { PLAYER_LIMB_L_FOOT, 486, 3971, -15160 }, // sole flat, toes forward and out
 };
 
 // Tuck: with speed, the upper body and arms blend from the seated pose to this one (head down over the tank,
@@ -195,10 +195,16 @@ void MotoLink_RiderLimbOverride(PlayState* play, Player* player, s32 limbIndex, 
     Rider_ApplyBlended(limbIndex, tuck, rot);
 }
 
-// The seated or tucked pose's current value for one joint axis (console override or default); the test driver's
-// pose fitter starts from these.
-s16 MotoLink_RiderPoseValue(u8 limb, char axis, bool tuck) {
-    return Rider_PoseValue(tuck, limb, axis);
+// A riding pose's current value for one joint axis (console override or default); the test driver's pose fitter
+// starts from these. set: 0 seated, 1 tucked, 2 foot down at a stop.
+s16 MotoLink_RiderPoseValue(u8 limb, char axis, s32 set) {
+    if (set == 2) {
+        const RiderJoint* joint = Rider_Find(sFootDown, ARRAY_COUNT(sFootDown), limb);
+
+        return joint != NULL ? Rider_Value("gMotoLink.FootDown", limb, axis, Rider_Axis(joint, axis))
+                             : Rider_PoseValue(false, limb, axis);
+    }
+    return Rider_PoseValue(set == 1, limb, axis);
 }
 
 Vec3f gMotoRiderFootAxes[2][4];
