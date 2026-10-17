@@ -25,6 +25,7 @@ extern EnHorse* gMotoRiddenBike;
 
 void EnHorseMoto_Init(EnHorse* this, PlayState* play);
 void EnHorseMoto_Destroy(EnHorse* this, PlayState* play);
+void EnHorseMoto_GhostUpdate(EnHorse* this, PlayState* play);
 void EnHorseMoto_InitColliders(EnHorse* this);
 void EnHorseMoto_PlaceColliders(EnHorse* this);
 void EnHorseMoto_UpdateStick(EnHorse* this, PlayState* play);

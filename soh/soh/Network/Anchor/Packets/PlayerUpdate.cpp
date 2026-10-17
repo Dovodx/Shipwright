@@ -1,6 +1,7 @@
 #include "soh/Network/Anchor/Anchor.h"
 #include "soh/Network/Anchor/JsonConversions.hpp"
 #include <nlohmann/json.hpp>
+#include "soh/Enhancements/MotoLink/MotoNet.h"
 
 extern "C" {
 #include "macros.h"
@@ -66,6 +67,7 @@ void Anchor::SendPacket_PlayerUpdate() {
     payload["unk_862"] = player->unk_862;
     payload["unk_85C"] = player->unk_85C;
     payload["actionVar1"] = player->av1.actionVar1;
+    MotoLink_AddBikeToPlayerUpdate(payload); // MotoLink: the player's bike, if it's in this scene
     payload["quiet"] = true;
 
     for (auto& [clientId, client] : clients) {
@@ -113,5 +115,6 @@ void Anchor::HandlePacket_PlayerUpdate(nlohmann::json payload) {
         client.unk_862 = payload.value("unk_862", (s16)0);
         client.unk_85C = payload.value("unk_85C", (f32)0);
         client.actionVar1 = payload.value("actionVar1", (s8)0);
+        MotoLink_ReadBikeFromPlayerUpdate(client, payload);
     }
 }

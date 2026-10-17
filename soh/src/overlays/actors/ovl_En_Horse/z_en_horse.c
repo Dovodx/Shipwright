@@ -792,7 +792,8 @@ void EnHorse_Init(Actor* thisx, PlayState* play2) {
         Actor_SetObjectDependency(play, &this->actor);
         this->boostSpeed = 12;
     } else if (this->actor.params & ENHORSE_PARAM_MOTO) {
-        this->actor.params &= ~ENHORSE_PARAM_MOTO;
+        this->motoGhost = (this->actor.params & ENHORSE_PARAM_MOTO_GHOST) != 0;
+        this->actor.params &= ~(ENHORSE_PARAM_MOTO | ENHORSE_PARAM_MOTO_GHOST);
         this->type = HORSE_MOTO;
         this->boostSpeed = 14;
         EnHorseMoto_Init(this, play);
@@ -3643,6 +3644,12 @@ void EnHorse_Update(Actor* thisx, PlayState* play2) {
     Vec3f dustAcc = { 0.0f, 0.0f, 0.0f };
     Vec3f dustVel = { 0.0f, 1.0f, 0.0f };
     Player* player = GET_PLAYER(play);
+
+    // MotoLink: another player's bike only follows their data
+    if (this->type == HORSE_MOTO && this->motoGhost) {
+        EnHorseMoto_GhostUpdate(this, play);
+        return;
+    }
 
     this->lastYaw = thisx->shape.rot.y;
     EnHorse_UpdateStick(this, play);

@@ -43,6 +43,8 @@ void MotoLink_SetRacingOnBike(bool racingOnBike);
 // driver's pose fitter.
 void MotoLink_RiderPostLimb(struct Player* player, s32 limbIndex);
 extern Vec3f gMotoRiderFootAxes[2][4];
+// The ghost bike a remote (Anchor) player's Link is riding, or NULL (MotoNet.cpp).
+struct EnHorse* MotoLink_GhostBikeForPlayer(struct Player* player);
 void MotoLink_RiderLimbOverride(struct PlayState* play, struct Player* player, s32 limbIndex, Vec3f* pos, Vec3s* rot);
 // True while Link is riding the bike (rather than Epona or nothing).
 bool MotoLink_PlayerOnBike(struct PlayState* play);

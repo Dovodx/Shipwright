@@ -167,10 +167,17 @@ void MotoLink_RiderLimbOverride(PlayState* play, Player* player, s32 limbIndex, 
         return;
     }
 
-    if (!MotoLink_PlayerOnBike(play)) {
+    if (player != GET_PLAYER(play)) {
+        // Another Anchor player's Link: posed from his ghost bike while riding it
+        bike = (player->stateFlags1 & PLAYER_STATE1_ON_HORSE) ? MotoLink_GhostBikeForPlayer(player) : NULL;
+        if (bike == NULL) {
+            return;
+        }
+    } else if (!MotoLink_PlayerOnBike(play)) {
         return;
+    } else {
+        bike = (EnHorse*)player->rideActor;
     }
-    bike = (EnHorse*)player->rideActor;
 
     // Tuck grows with speed (for tuning, gMotoLink.Pose.TuckPin 1 pins it at gMotoLink.Pose.TuckForce percent).
     // Console values stay non-negative: the console's "set" stores a negative number as a string, which crashes

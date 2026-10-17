@@ -84,6 +84,11 @@ static const f32 sMotoGearTopFrac[MOTO_NUM_GEARS] = { 0.23f, 0.38f, 0.53f, 0.67f
 
 s32 MotoAudio_AllocVoice(void);
 void MotoAudio_FreeVoice(s32 voice);
+void MotoLink_GhostDestroyed(Actor* ghost);
+void MotoAudio_SetSkid(s32 voice, f32 level);
+void MotoAudio_Thump(s32 voice, f32 strength);
+static void EnHorseMoto_UpdateEngineAudio(EnHorse* this, PlayState* play);
+static void EnHorseMoto_UpdateTyreSounds(EnHorse* this);
 void MotoAudio_SetVoice(s32 voice, f32 rpm, f32 pitch, f32 load, f32 gainL, f32 gainR, u8 muffled);
 
 // Engine audio: distance at which a bike is at half volume, and the (deliberately low, cartoonish) speed of sound
@@ -95,9 +100,11 @@ void EnHorseMoto_Init(EnHorse* this, PlayState* play) {
     Actor* other;
 
     // There is only one bike: a newly placed one (e.g. Link put on it for a race) replaces any bike already here.
-    for (other = play->actorCtx.actorLists[ACTORCAT_BG].head; other != NULL; other = other->next) {
+    // (Other players' ghost bikes don't count.)
+    for (other = play->actorCtx.actorLists[ACTORCAT_BG].head; other != NULL && !this->motoGhost;
+         other = other->next) {
         if (other != &this->actor && other->id == ACTOR_EN_HORSE && other->update != NULL &&
-            ((EnHorse*)other)->type == HORSE_MOTO) {
+            ((EnHorse*)other)->type == HORSE_MOTO && !((EnHorse*)other)->motoGhost) {
             Actor_Kill(other);
         }
     }
@@ -143,12 +150,71 @@ void EnHorseMoto_PlaceColliders(EnHorse* this) {
 }
 
 void EnHorseMoto_Destroy(EnHorse* this, PlayState* play) {
+    if (this->motoGhost) {
+        MotoLink_GhostDestroyed(&this->actor);
+    }
     MotoAudio_FreeVoice(this->motoVoice);
     this->motoVoice = -1;
     if (gMotoRiddenBike == this) {
         gMotoRiding = false;
         gMotoRiddenBike = NULL;
     }
+}
+
+/*
+ * Tyre sounds, synthesized with the engine (EngineSynth.h): a screech when braking hard at speed, and a thump when
+ * the bike lands from a jump or a drop, stronger the harder it comes down.
+ */
+#define MOTO_SKID_MIN_SPEED 6.0f
+#define MOTO_THUMP_MIN_FALL 6.0f
+#define MOTO_THUMP_FULL_FALL 24.0f
+
+static void EnHorseMoto_UpdateTyreSounds(EnHorse* this) {
+    bool grounded = (this->actor.bgCheckFlags & BGCHECKFLAG_GROUND) != 0;
+    f32 skid = 0.0f;
+
+    if (this->playerControlled && grounded && this->motoFallen == 0) {
+        skid = CLAMP(gMotoBrake * (this->actor.speedXZ - MOTO_SKID_MIN_SPEED) / 12.0f, 0.0f, 1.0f);
+    }
+    MotoAudio_SetSkid(this->motoVoice, skid);
+
+    if (!grounded) {
+        this->motoFallVy = MAX(this->motoFallVy, -this->actor.velocity.y);
+    } else {
+        if (this->motoFallVy > MOTO_THUMP_MIN_FALL) {
+            MotoAudio_Thump(this->motoVoice, CLAMP(this->motoFallVy / MOTO_THUMP_FULL_FALL, 0.2f, 1.0f));
+        }
+        this->motoFallVy = 0.0f;
+    }
+}
+
+/*
+ * Ghost bikes: another Anchor player's bike (MotoNet.cpp spawns them and writes the received state: target position,
+ * yaw, speed, RPM, lean and the rest). No physics or collision: the bike glides to where the latest data says it is,
+ * extrapolating with its speed between updates, so it moves smoothly whatever the network does; its engine plays like
+ * any bike that isn't yours, with Doppler from the sent speed (not differentiated positions, which would warble).
+ */
+#define MOTO_GHOST_FOLLOW 0.5f
+#define MOTO_GHOST_SNAP_DIST 300.0f // further off than this: teleport (respawn, scene arrival)
+
+void EnHorseMoto_GhostUpdate(EnHorse* this, PlayState* play) {
+    f32 move = R_UPDATE_RATE * 0.5f;
+
+    // Extrapolate the target one frame along the bike's motion (MotoNet resets it on each update).
+    this->motoGhostTarget.x += Math_SinS(this->actor.world.rot.y) * this->actor.speedXZ * move;
+    this->motoGhostTarget.z += Math_CosS(this->actor.world.rot.y) * this->actor.speedXZ * move;
+    this->motoGhostTarget.y += this->actor.velocity.y * move;
+    if (Math_Vec3f_DistXYZ(&this->actor.world.pos, &this->motoGhostTarget) > MOTO_GHOST_SNAP_DIST) {
+        this->actor.world.pos = this->motoGhostTarget;
+    } else {
+        this->actor.world.pos.x += (this->motoGhostTarget.x - this->actor.world.pos.x) * MOTO_GHOST_FOLLOW;
+        this->actor.world.pos.y += (this->motoGhostTarget.y - this->actor.world.pos.y) * MOTO_GHOST_FOLLOW;
+        this->actor.world.pos.z += (this->motoGhostTarget.z - this->actor.world.pos.z) * MOTO_GHOST_FOLLOW;
+    }
+    this->actor.shape.rot.y = this->actor.world.rot.y;
+    this->actor.focus.pos = this->actor.world.pos;
+    this->actor.focus.pos.y += MOTO_SEAT_Y;
+    EnHorseMoto_UpdateEngineAudio(this, play);
 }
 
 // Publishes this bike's engine voice: RPM (Doppler-shifted unless ridden), throttle load and stereo gains.
@@ -202,7 +268,8 @@ static void EnHorseMoto_UpdateEngineAudio(EnHorse* this, PlayState* play) {
     pan = (this->actor.projectedW > 1.0f) ? CLAMP(this->actor.projectedPos.x / this->actor.projectedW, -1.0f, 1.0f)
                                           : 0.0f;
     pan *= 0.8f;
-    MotoAudio_SetVoice(this->motoVoice, this->motoRpm, this->motoDoppler, this->playerControlled ? gMotoThrottle : 0.0f,
+    MotoAudio_SetVoice(this->motoVoice, this->motoRpm, this->motoDoppler,
+                       this->playerControlled ? gMotoThrottle : this->motoGhost ? this->motoGhostThrottle : 0.0f,
                        gain * 1.41421356f * Math_CosF((pan + 1.0f) * (M_PI / 4.0f)),
                        gain * 1.41421356f * Math_SinF((pan + 1.0f) * (M_PI / 4.0f)), this->motoUnderwater);
 }
@@ -360,6 +427,7 @@ void EnHorseMoto_UpdateStick(EnHorse* this, PlayState* play) {
     }
     EnHorseMoto_UpdateEngine(this);
     EnHorseMoto_UpdateEngineAudio(this, play);
+    EnHorseMoto_UpdateTyreSounds(this);
     // Wheel spin follows ground speed (speedXZ units/frame over the wheel radius), but is drawn at most
     // MOTO_WHEEL_MAX_SPIN per game frame (the cap is in radians: RADF_TO_BINANG overflows past half a turn), since
     // near half a turn per frame, frame interpolation (which takes the short way round) would spin the wheels
@@ -492,6 +560,7 @@ static void EnHorseMoto_Crash(EnHorse* this, PlayState* play) {
     this->actor.speedXZ = 0.0f;
     Player_PlaySfx(&this->actor, NA_SE_IT_WALL_HIT_HARD);
     Player_PlaySfx(&this->actor, NA_SE_EV_STONE_BOUND);
+    MotoAudio_Thump(this->motoVoice, 1.0f);
 }
 
 // Wall rules, run from EnHorse_UpdateBgCheckInfo right after the bike's BgCheck. Returns true on a crash.
@@ -734,6 +803,7 @@ void EnHorseMoto_UpdateJump(EnHorse* this, PlayState* play) {
 #define MOTO_CAM_YAW_FOLLOW 0.25f // fraction of the heading difference caught up per frame
 #define MOTO_CAM_Y_FOLLOW 0.35f   // same for the bike's height (jumps, slopes)
 #define MOTO_CAM_FOV 60.0f
+#define MOTO_CAM_WALL_GAP 10.0f // eye kept this far in front of scenery between it and the rider
 
 #define MOTO_CAM_CUT_DIST 150.0f   // the bike moving further than this in a frame is a teleport: let the view cut
 
@@ -785,6 +855,28 @@ void EnHorseMoto_AdjustView(PlayState* play) {
     view->up.x = view->up.z = 0.0f;
     view->up.y = 1.0f;
     view->fovy = CVarGetFloat("gMotoLink.Camera.Fov", MOTO_CAM_FOV);
+
+    // Keep the eye out of the scenery (walls, hillsides, a lake bed rising behind the bike): if something lies
+    // between the rider and the eye, the eye comes in to just in front of it.
+    {
+        Vec3f from = bike->actor.world.pos;
+        Vec3f hit;
+        CollisionPoly* poly;
+        s32 bgId;
+
+        from.y += MOTO_CAM_AT_HEIGHT;
+        if (BgCheck_CameraLineTest1(&play->colCtx, &from, &view->eye, &hit, &poly, true, true, true, true, &bgId)) {
+            f32 dx = from.x - hit.x, dy = from.y - hit.y, dz = from.z - hit.z;
+            f32 len = sqrtf(SQ(dx) + SQ(dy) + SQ(dz));
+
+            if (len > 1.0f) {
+                f32 pull = MIN(MOTO_CAM_WALL_GAP / len, 1.0f);
+                view->eye.x = hit.x + dx * pull;
+                view->eye.y = hit.y + dy * pull;
+                view->eye.z = hit.z + dz * pull;
+            }
+        }
+    }
 }
 
 void EnHorseMoto_UpdateRiderPos(EnHorse* this) {
@@ -843,7 +935,7 @@ void EnHorseMoto_Draw(EnHorse* this, PlayState* play) {
         f32 steer = -this->motoSteer * MOTO_MAX_STEER /
                     (1.0f + CLAMP(this->actor.speedXZ, 0.0f, MOTO_TOP_SPEED) * (3.0f / MOTO_TOP_SPEED));
 
-        if (!this->playerControlled) {
+        if (!this->playerControlled && !(this->motoGhost && this->motoGhostRidden)) {
             steer = 0.0f;
         }
         Matrix_Translate(0.0f, MOTO_STEER_PIVOT_Y, MOTO_STEER_PIVOT_Z, MTXMODE_APPLY);

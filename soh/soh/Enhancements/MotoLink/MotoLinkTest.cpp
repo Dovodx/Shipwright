@@ -297,6 +297,9 @@ void RunEvent(const TestEvent& ev) {
             f32 y = BgCheck_EntityRaycastFloor3(&gPlayState->colCtx, &poly, &bgId, &p);
             printf("motolink-test: floorat (%.0f,%.0f) y=%.0f\n", p.x, p.z, y);
         }
+    } else if (cmd == "fileslot" && a.size() > 1) {
+        // The test boot's debug save has no file slot; Anchor only treats a save in slot 0-2 as loaded
+        gSaveContext.fileNum = std::stoi(a[1]);
     } else if (cmd == "textid" && gPlayState != nullptr) {
         printf("motolink-test: @%d textid 0x%04X msgMode=%d\n", sFrame, gPlayState->msgCtx.textId,
                gPlayState->msgCtx.msgMode);

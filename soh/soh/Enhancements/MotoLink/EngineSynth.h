@@ -38,6 +38,17 @@ class EngineSynth {
         mTargetMuffle = muffled ? 1.0f : 0.0f;
     }
 
+    // Tyre screech level 0..1 (hard braking at speed), faded towards.
+    void SetSkid(float level) {
+        mTargetSkid = level;
+    }
+
+    // A landing/impact thump of the given strength 0..1 (suspension bottoming out, tyres hitting the ground).
+    void Thump(float strength) {
+        mThumpEnv = std::fmax(mThumpEnv, strength);
+        mThumpPhase = 0.0f;
+    }
+
     // Renders `frames` mono samples (roughly -1..1) into `out`.
     void Render(float* out, uint32_t frames) {
         const float glide = 1.0f - std::exp(-1.0f / (0.012f * mSampleRate)); // ~12 ms time constant
@@ -72,6 +83,22 @@ class EngineSynth {
             const float noise = (Random() * 2.0f - 1.0f) * mLoad * 0.05f * (0.5f + 0.5f * mSine[base & (kTableSize - 1)]);
             mNoiseLp += (noise - mNoiseLp) * 0.35f;
             y += mNoiseLp;
+
+            // Tyre screech: noise through two resonances (~1.9 and ~3.1 kHz) with a slow wobble, faded in and out.
+            mSkid += (mTargetSkid - mSkid) * (glide * 0.25f);
+            if (mSkid > 1e-4f) {
+                const float n = Random() * 2.0f - 1.0f;
+                mSkidWobble += 2.0f * 3.14159265f * 7.0f / mSampleRate;
+                const float wob = 1.0f + 0.04f * std::sin(mSkidWobble);
+                y += 1.6f * mSkid *
+                     (mSkidA.Process(n, 1900.0f * wob, 0.995f, mSampleRate) + 0.6f * mSkidB.Process(n, 3100.0f * wob, 0.993f, mSampleRate));
+            }
+            // Thump: a short, falling low tone with a burst of noise.
+            if (mThumpEnv > 1e-4f) {
+                mThumpPhase += (55.0f + 60.0f * mThumpEnv) / mSampleRate;
+                y += mThumpEnv * (0.9f * std::sin(2.0f * 3.14159265f * mThumpPhase) + 0.25f * (Random() * 2.0f - 1.0f));
+                mThumpEnv *= 0.99955f; // ~70 ms
+            }
 
             // Gentle saturation keeps peaks round when everything lines up.
             y = std::tanh(1.3f * y) / 1.3f;
@@ -142,6 +169,19 @@ class EngineSynth {
     float mRpm = 800.0f, mLoad = 0.0f, mPitch = 1.0f;
     float mPhase = 0.0f, mGain = 1.0f, mCycleGain = 1.0f, mCycleJitter = 0.0f;
     float mNoiseLp = 0.0f;
+    float mTargetSkid = 0.0f, mSkid = 0.0f, mSkidWobble = 0.0f;
+    float mThumpEnv = 0.0f, mThumpPhase = 0.0f;
+    struct Resonator {
+        float y1 = 0.0f, y2 = 0.0f;
+        float Process(float x, float freq, float r, float sampleRate) {
+            const float w = 2.0f * 3.14159265f * freq / sampleRate;
+            const float y = 2.0f * r * std::cos(w) * y1 - r * r * y2 + x * (1.0f - r);
+            y2 = y1;
+            y1 = y;
+            return y;
+        }
+    };
+    Resonator mSkidA, mSkidB;
     float mTargetMuffle = 0.0f, mMuffle = 0.0f, mMuffled = 0.0f;
     uint32_t mSeed = 22222u;
 };

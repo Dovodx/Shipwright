@@ -58,6 +58,25 @@ typedef struct {
     f32 ocarinaModulator;
     s8 ocarinaBend;
 
+    // MotoLink: the client's motorcycle (PLAYER_UPDATE "moto", present while their bike is in their scene)
+    bool motoPresent;
+    bool motoRidden;
+    bool motoUnderwater;
+    Vec3f motoPos;
+    s16 motoYaw;
+    f32 motoSpeed;
+    f32 motoVelY;
+    f32 motoRpm;
+    f32 motoThrottle;
+    f32 motoSteer;
+    s16 motoLean;
+    s16 motoWheelie;
+    s16 motoPitch;
+    s16 motoFallen;
+    u32 motoUpdates; // count of received bike updates (a new one resets the ghost's extrapolation)
+    // Ptr to the ghost bike drawn for this client
+    Actor* motoGhost;
+
     // Ptr to the dummy player
     Player* player;
 } AnchorClient;

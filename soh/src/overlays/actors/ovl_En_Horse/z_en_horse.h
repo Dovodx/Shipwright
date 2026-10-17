@@ -92,6 +92,8 @@ typedef enum {
 
 // MotoLink: spawn params flag selecting HORSE_MOTO (as 0x8000 selects HORSE_HNI)
 #define ENHORSE_PARAM_MOTO 0x4000
+// MotoLink: with ENHORSE_PARAM_MOTO, a ghost bike: another Anchor player's bike, drawn from network state
+#define ENHORSE_PARAM_MOTO_GHOST 0x2000
 
 typedef void (*EnHorsePostdrawFunc)(struct EnHorse*, PlayState*);
 
@@ -180,6 +182,12 @@ typedef struct EnHorse {
     u8 motoWallTouch;  // touching a wall last frame (crash rules run once per new contact)
     f32 motoJumpVy;    // launch speed for the next fence jump (worked out when the jump is triggered)
     s16 motoPitch;     // nose up/down in the air (binary angle, positive = nose up)
+    // Ghost bikes (another player's, see MotoNet.cpp): no physics, they follow the received state
+    f32 motoFallVy;    // downward speed while in the air (for the landing thump), 0 on the ground
+    u8 motoGhost;
+    u8 motoGhostRidden;
+    f32 motoGhostThrottle;
+    Vec3f motoGhostTarget; // where the bike is now by the latest data (extrapolated between updates)
 
 // MotoLink: underwater (and briefly after leaving the water, e.g. over a waterfall's lip) the bike follows the
 // bottom wherever it goes, ignoring the horse's refusal of drops, steep and horse-blocked floors.

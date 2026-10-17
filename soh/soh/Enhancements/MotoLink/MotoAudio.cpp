@@ -33,12 +33,16 @@ struct VoiceParams {
     float rpm = 800.0f;
     float pitch = 1.0f;
     float load = 0.0f;
+    float skid = 0.0f;
+    uint32_t thumps = 0;      // count of thumps requested (a change triggers one)
+    float thumpStrength = 0.0f;
     float gainL = 0.0f, gainR = 0.0f;
     bool muffled = false;
 };
 
 struct Voice {
     MotoLink::EngineSynth synth{ kSampleRate };
+    uint32_t thumps = 0;
     float gainL = 0.0f, gainR = 0.0f; // smoothed per buffer
 };
 
@@ -107,6 +111,11 @@ void MotoAudio_Mix(s16* buffer, u32 frames) {
             continue;
         }
         voice.synth.SetTarget(p.rpm, p.load, p.pitch);
+        voice.synth.SetSkid(p.skid);
+        if (voice.thumps != p.thumps) {
+            voice.thumps = p.thumps;
+            voice.synth.Thump(p.thumpStrength);
+        }
         voice.synth.SetMuffled(p.muffled);
         for (u32 start = 0; start < frames; start += 2048) {
             const u32 n = std::min<u32>(2048, frames - start);
@@ -125,6 +134,25 @@ void MotoAudio_Mix(s16* buffer, u32 frames) {
             voice.gainR = targetR;
         }
     }
+}
+
+// Tyre screech level 0..1 for a voice.
+void MotoAudio_SetSkid(s32 voice, f32 level) {
+    if (voice < 0 || voice >= kMaxVoices) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(sParamsMutex);
+    sParams[voice].skid = level;
+}
+
+// A landing/impact thump of strength 0..1 for a voice.
+void MotoAudio_Thump(s32 voice, f32 strength) {
+    if (voice < 0 || voice >= kMaxVoices) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(sParamsMutex);
+    sParams[voice].thumps++;
+    sParams[voice].thumpStrength = strength;
 }
 
 } // extern "C"
