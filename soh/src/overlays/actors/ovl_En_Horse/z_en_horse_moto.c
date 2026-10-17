@@ -53,7 +53,7 @@ u8 gMotoRiding;
 // Drive force at full throttle. With drag growing as (v/top)^2 this reaches 65% of top speed in ~3 s, the feel
 // of Moto Racer's bike #2 (strong acceleration that tails off; see re/NOTES.md "Engine drive-force curve").
 #define MOTO_ACCEL 0.384f
-#define MOTO_DRAG MOTO_ACCEL // equal to MOTO_ACCEL so full throttle balances exactly at top speed
+// Drag equals the drive force at top speed, so full throttle balances exactly there.
 #define MOTO_WHEELIE_TOP_FACTOR 1.4142f // sqrt(2): balance speed with the wheelie's doubled drive force
 #define MOTO_ENGINE_BRAKE 0.08f
 #define MOTO_BRAKE_DECEL 0.9f
@@ -305,7 +305,7 @@ static void EnHorseMoto_CutGrass(EnHorse* this, PlayState* play) {
 }
 
 static void EnHorseMoto_UpdateEngine(EnHorse* this) {
-    f32 frac = this->actor.speedXZ / MOTO_TOP_SPEED;
+    f32 frac = this->actor.speedXZ / MOTO_TOP_SPEED_SET; // the gearbox spreads over whatever the top speed is
     f32 throttle = this->playerControlled ? gMotoThrottle : 0.0f;
     f32 target;
     s32 gear = 1;
@@ -395,6 +395,7 @@ static void EnHorseMoto_UpdateLean(EnHorse* this) {
 // Replaces EnHorse_UpdateSpeed's stick-driven speed and steering for every mounted gait.
 void EnHorseMoto_UpdateSpeed(EnHorse* this, PlayState* play, f32 decel) {
     f32 top;
+    f32 accel;
     f32 v = this->actor.speedXZ;
     f32 turnRate;
 
@@ -404,8 +405,11 @@ void EnHorseMoto_UpdateSpeed(EnHorse* this, PlayState* play, f32 decel) {
         return;
     }
 
-    top = MOTO_TOP_SPEED * EnHorse_SlopeSpeedMultiplier(this, play);
-    v += gMotoThrottle * MOTO_ACCEL * (this->motoWheelie != 0 ? 2.0f : 1.0f) - MOTO_DRAG * SQ(v / top);
+    // Settings: top speed and acceleration multipliers. Acceleration scales drive and drag together, so it changes
+    // how quickly the bike gets to its top speed, not the top speed itself.
+    top = MOTO_TOP_SPEED_SET * EnHorse_SlopeSpeedMultiplier(this, play);
+    accel = MOTO_ACCEL * CVarGetFloat("gMotoLink.Bike.Accel", 1.0f);
+    v += gMotoThrottle * accel * (this->motoWheelie != 0 ? 2.0f : 1.0f) - accel * SQ(v / top);
     if (gMotoThrottle < 0.05f) {
         v -= MOTO_ENGINE_BRAKE;
     }
@@ -414,7 +418,7 @@ void EnHorseMoto_UpdateSpeed(EnHorse* this, PlayState* play, f32 decel) {
     // balance point to sqrt(2) * top. Above `top` without the wheelie, drag alone brings the speed back down.
     this->actor.speedXZ = CLAMP(v, 0.0f, top * MOTO_WHEELIE_TOP_FACTOR);
 
-    turnRate = MOTO_TURN_SLOW + (MOTO_TURN_FAST - MOTO_TURN_SLOW) * (this->actor.speedXZ / MOTO_TOP_SPEED);
+    turnRate = MOTO_TURN_SLOW + (MOTO_TURN_FAST - MOTO_TURN_SLOW) * CLAMP(this->actor.speedXZ / MOTO_TOP_SPEED, 0.0f, 1.0f);
     turnRate *= CLAMP(this->actor.speedXZ / MOTO_TURN_MIN_SPEED, 0.0f, 1.0f);
     // Stick right = clockwise from above = decreasing yaw
     this->actor.world.rot.y -= (s16)(this->motoSteer * turnRate);
@@ -656,7 +660,6 @@ void EnHorseMoto_ApplyRiderTilt(EnHorse* this, Player* player) {
  */
 #define MOTO_JUMP_GRAVITY 3.5f       // Epona's
 #define MOTO_JUMP_CLEARANCE 10.0f
-#define MOTO_JUMP_NOSE 30.0f // centre to front wheel
 #define MOTO_JUMP_MIN_SPEED 10.0f
 #define MOTO_JUMP_LEAD_MIN_DIST 50.0f  // take off no closer than this (the bike's wall contact reaches 35)
 #define MOTO_JUMP_PITCH_MAX DEGF_TO_BINANG(25.0f)
@@ -665,23 +668,25 @@ void EnHorseMoto_ApplyRiderTilt(EnHorse* this, Player* player) {
 // bike keeps riding until it is the time-to-peak of that jump away (further for taller fences and higher speeds),
 // then takes off (returns true). If the fence is already closer, it takes off at once with the steeper jump needed.
 s32 EnHorseMoto_PrepareJump(EnHorse* this, f32 obstacleDist, f32 obstacleHeight) {
-    // Actors move velocity * R_UPDATE_RATE / 2 per frame (1.5x at 20 Hz): plan in actual distances.
+    // Actors move velocity * R_UPDATE_RATE / 2 per frame (1.5x at 20 Hz), and gravity is applied before each move,
+    // so after t frames the bike has risen move * (vy t - g t (t + 1) / 2). Plan in those actual, per-frame terms.
     f32 move = R_UPDATE_RATE * 0.5f;
+    f32 g = MOTO_JUMP_GRAVITY;
     f32 v = MAX(this->actor.speedXZ, MOTO_JUMP_MIN_SPEED) * move; // ground covered per frame
     f32 rise = obstacleHeight + MOTO_JUMP_CLEARANCE;
-    f32 vyPeak = sqrtf(2.0f * MOTO_JUMP_GRAVITY * rise / move); // peaks at exactly `rise`
-    // The front wheel reaches the fence MOTO_JUMP_NOSE before the bike's centre does, and must already be above it
-    // (otherwise the bike's ground check lifts it onto the fence top, an extra kick): plan the arc's peak for the
-    // fence's near side, measured from the nose.
-    f32 lead = MAX(v * vyPeak / MOTO_JUMP_GRAVITY, MOTO_JUMP_LEAD_MIN_DIST) + MOTO_JUMP_NOSE;
+    // Lowest launch whose peak (after about vy / g frames) reaches `rise`: vy^2 - g vy = 2 g rise / move
+    f32 vyPeak = 0.5f * (g + sqrtf(g * g + 8.0f * g * rise / move));
+    // Take off so that the peak comes as the bike's centre is over the fence: both wheels then clear it about
+    // equally, and the front is never below the fence top as it gets there (the ground check would lift it).
+    f32 lead = MAX(v * vyPeak / g, MOTO_JUMP_LEAD_MIN_DIST);
     f32 t;
 
     if (obstacleDist > lead) {
         return false;
     }
-    t = MAX((obstacleDist - MOTO_JUMP_NOSE) / v, 2.0f); // frames until the front wheel is over the fence
-    // Height at time t: move * (vy t - g t^2 / 2) = rise (no less than the peaking jump)
-    this->motoJumpVy = CLAMP(MAX(rise / (move * t) + 0.5f * MOTO_JUMP_GRAVITY * t, vyPeak), 6.0f, 40.0f);
+    t = MAX(obstacleDist / v, 2.0f); // frames until the centre is over the fence
+    // If the fence is already closer than the peak, launch steeper so the bike is at `rise` when it gets there.
+    this->motoJumpVy = CLAMP(MAX(rise / (move * t) + 0.5f * g * (t + 1.0f), vyPeak), 6.0f, 40.0f);
     return true;
 }
 

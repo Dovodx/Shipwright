@@ -24,7 +24,7 @@
 //   eventflag <hex>           set an eventChkInf flag (e.g. 0x69 raises Lake Hylia's water); reload to apply
 //   sceneinit                 run the OnSceneInit hooks for the current scene (exercises age-dependent setup)
 //   limbs                     print Link's body part (joint) positions in the ridden bike's space
-//   mount                     place Link beside the bike, ready to get on with A
+//   mount [epona]             place Link beside the bike (or Epona), ready to get on with A
 //   fitrider <stage>          fit the riding pose (stages: torso, limbs, feet, tucktorso, tuckarms) so the head sits over
 //                             the tank, ankles reach the pegs and wrists the grips
 //                             (pattern search on the gMotoLink.Pose.* CVars, measured in game; the script pauses
@@ -48,6 +48,7 @@
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/ShipInit.hpp"
 #include "MotoLink.h"
+#include "soh/Enhancements/SwitchAge.h"
 #include "soh/ResourceManagerHelpers.h"
 
 extern "C" {
@@ -231,7 +232,8 @@ void RunEvent(const TestEvent& ev) {
         GameInteractor::Instance->ExecuteHooks<GameInteractor::OnSceneInit>(gPlayState->sceneNum);
     } else if (cmd == "bike" && a.size() >= 4 && gPlayState != nullptr) {
         for (Actor* act = gPlayState->actorCtx.actorLists[ACTORCAT_BG].head; act != nullptr; act = act->next) {
-            if (act->id == ACTOR_EN_HORSE && ((EnHorse*)act)->type == HORSE_MOTO) {
+            if (act->id == ACTOR_EN_HORSE &&
+                ((EnHorse*)act)->type == (a.size() > 1 && a[1] == "epona" ? HORSE_EPONA : HORSE_MOTO)) {
                 act->world.pos = { std::stof(a[1]), std::stof(a[2]), std::stof(a[3]) };
                 act->prevPos = act->world.pos;
                 if (a.size() >= 5) {
@@ -295,6 +297,18 @@ void RunEvent(const TestEvent& ev) {
             f32 y = BgCheck_EntityRaycastFloor3(&gPlayState->colCtx, &poly, &bgId, &p);
             printf("motolink-test: floorat (%.0f,%.0f) y=%.0f\n", p.x, p.z, y);
         }
+    } else if (cmd == "textid" && gPlayState != nullptr) {
+        printf("motolink-test: @%d textid 0x%04X msgMode=%d\n", sFrame, gPlayState->msgCtx.textId,
+               gPlayState->msgCtx.msgMode);
+    } else if (cmd == "eventget" && a.size() > 1) {
+        printf("motolink-test: @%d eventget %s = %d\n", sFrame, a[1].c_str(),
+               Flags_GetEventChkInf(std::stoi(a[1], nullptr, 0)) ? 1 : 0);
+    } else if (cmd == "switchage" && gPlayState != nullptr) {
+        SwitchAge(); // SoH's age switch: the age flips on the next scene load, as with the Temple of Time
+    } else if (cmd == "cbuttons" && gPlayState != nullptr) {
+        printf("motolink-test: @%d cbuttons age=%d L=0x%02X D=0x%02X R=0x%02X tradeChild=0x%02X\n", sFrame,
+               gSaveContext.linkAge, gSaveContext.equips.buttonItems[1], gSaveContext.equips.buttonItems[2],
+               gSaveContext.equips.buttonItems[3], gSaveContext.inventory.items[SLOT_TRADE_CHILD]);
     } else if (cmd == "daytime" && a.size() > 1) {
         gSaveContext.dayTime = (u16)std::stoi(a[1], nullptr, 0); // e.g. 0x8000 = noon (no Stalchildren)
     } else if (cmd == "fencefind" && gPlayState != nullptr) {
@@ -347,7 +361,8 @@ void RunEvent(const TestEvent& ev) {
         // wherever the summon put the bike.
         Player* player = GET_PLAYER(gPlayState);
         for (Actor* act = gPlayState->actorCtx.actorLists[ACTORCAT_BG].head; act != nullptr; act = act->next) {
-            if (act->id == ACTOR_EN_HORSE && ((EnHorse*)act)->type == HORSE_MOTO) {
+            if (act->id == ACTOR_EN_HORSE &&
+                ((EnHorse*)act)->type == (a.size() > 1 && a[1] == "epona" ? HORSE_EPONA : HORSE_MOTO)) {
                 s16 yaw = act->shape.rot.y;
                 player->actor.world.pos = { act->world.pos.x - Math_CosS(yaw) * 35.0f, act->world.pos.y,
                                             act->world.pos.z + Math_SinS(yaw) * 35.0f };

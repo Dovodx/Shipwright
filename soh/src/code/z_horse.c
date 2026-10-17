@@ -167,8 +167,9 @@ void Horse_SetupInCutscene(PlayState* play, Player* player) {
             spawnPos = spawnPositions[3];
         }
 
+        // MotoLink: escaping the ranch on the bike, the jump-out cutscene plays on the bike
         player->rideActor = Actor_Spawn(&play->actorCtx, play, ACTOR_EN_HORSE, spawnPos.x, spawnPos.y, spawnPos.z, 0,
-                                        player->actor.world.rot.y, 0, 7);
+                                        player->actor.world.rot.y, 0, 7 | MotoLink_MountParamsFlag());
         assert(player->rideActor != NULL);
 
         Actor_MountHorse(play, player, player->rideActor);

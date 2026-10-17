@@ -8,6 +8,8 @@
 // Speeds are units/frame at SoH's 20 Hz. Epona gallops at 8 and spurs to 14; the bike tops out at ~2x her spur
 // (still well below an authentic Moto Racer top speed so actors keep up and walls don't tunnel).
 #define MOTO_TOP_SPEED 28.8f
+// Top speed with the player's setting applied (gMotoLink.Bike.TopSpeed, a multiplier).
+#define MOTO_TOP_SPEED_SET (MOTO_TOP_SPEED * CVarGetFloat("gMotoLink.Bike.TopSpeed", 1.0f))
 // Real-world speed scale (tachometer readout, crash thresholds): 24 units/frame is Moto Racer bike #2's 277 km/h
 // (172 mph), so the bike's 28.8 reads as ~206 mph.
 #define MOTO_UNITS_PER_KMH (24.0f / 277.0f)

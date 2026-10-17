@@ -38,12 +38,19 @@ void SyncFobSlot() {
         slot = gMotoSave.stashedChildTradeItem;
         gMotoSave.stashedChildTradeItem = ITEM_NONE;
     }
+    // C buttons assigned to the shared slot show (and use) whatever it holds now: the fob as adult, the child
+    // trade item as child.
+    for (int i = 0; i < 3; i++) {
+        if (gSaveContext.equips.cButtonSlots[i] == SLOT_TRADE_CHILD) {
+            gSaveContext.equips.buttonItems[i + 1] = slot;
+        }
+    }
 }
 
 void UseKeyFob() {
     PlayState* play = gPlayState;
     // Anywhere, unlike Epona (who only comes to Hyrule Field, Lake Hylia, Gerudo Valley/Fortress and the ranch).
-    if (play == nullptr || !MotoLink_SummonBike(play)) {
+    if (play == nullptr || !LINK_IS_ADULT || !MotoLink_SummonBike(play)) {
         Sfx_PlaySfxCentered(NA_SE_SY_ERROR);
         return;
     }

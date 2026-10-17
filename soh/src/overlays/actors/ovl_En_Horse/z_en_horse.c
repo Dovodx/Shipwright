@@ -3331,7 +3331,8 @@ void EnHorse_UpdateBgCheckInfo(EnHorse* this, PlayState* play) {
         }
 
         dynaPoly = DynaPoly_GetActor(&play->colCtx, bgId);
-        if ((this->stateFlags & ENHORSE_FLAG_26) && this->type != HORSE_MOTO && ((dynaPoly && dynaPoly->actor.id != 0x108) || dynaPoly == 0)) {
+        // (after winning Epona, only the escape jump points on the outer fence, Bg_Umajump, can be jumped)
+        if ((this->stateFlags & ENHORSE_FLAG_26) && ((dynaPoly && dynaPoly->actor.id != 0x108) || dynaPoly == 0)) {
             if (movingFast == false) {
                 this->stateFlags |= ENHORSE_FORCE_REVERSING;
             } else if (movingFast == true) {
@@ -3444,20 +3445,21 @@ void EnHorse_UpdateBgCheckInfo(EnHorse* this, PlayState* play) {
         }
     }
 
-    if (movingFast == false && obstacleHeight > 19.0f && obstacleHeight <= 40.0f) {
-        EnHorse_Stub1(this);
-        if (this->type == HORSE_MOTO && !EnHorseMoto_PrepareJump(this, intersectDist, obstacleHeight)) {
-            return; // not yet: the bike takes off just before the fence
+    // MotoLink: the bike's jumps are ballistic (the launch speed is worked out to clear the fence), so it jumps
+    // anything Epona's highest jump can at any speed she'd consider jumping, instead of her speed/height bands
+    if (this->type == HORSE_MOTO) {
+        if (obstacleHeight > 19.0f && obstacleHeight <= 112.0f &&
+            EnHorseMoto_PrepareJump(this, intersectDist, obstacleHeight)) {
+            this->postDrawFunc = EnHorse_HighJumpInit;
         }
+    } else if (movingFast == false && obstacleHeight > 19.0f && obstacleHeight <= 40.0f) {
+        EnHorse_Stub1(this);
         this->postDrawFunc = EnHorse_LowJumpInit;
     } else if ((movingFast == true && this->actor.speedXZ < 13.8f && obstacleHeight > 19.0f &&
                 obstacleHeight <= 72.0f) ||
                (this->actor.speedXZ > 13.8f && obstacleHeight <= 112.0f)) {
 
         EnHorse_Stub2(this);
-        if (this->type == HORSE_MOTO && !EnHorseMoto_PrepareJump(this, intersectDist, obstacleHeight)) {
-            return; // not yet: the bike takes off just before the fence
-        }
         this->postDrawFunc = EnHorse_HighJumpInit;
     }
 }

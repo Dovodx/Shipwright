@@ -2195,6 +2195,71 @@ void SohMenu::AddMenuEnhancements() {
             .CVar(timer.timeEnable)
             .Callback([](WidgetInfo& info) { TimeDisplayUpdateDisplayOptions(); });
     }
+
+    // MotoLink: the motorcycle
+    path.sidebarName = "MotoLink";
+    AddSidebarEntry("Enhancements", path.sidebarName, 3);
+    path.column = SECTION_COLUMN_1;
+    AddWidget(path, "Bike", WIDGET_SEPARATOR_TEXT);
+    AddWidget(path, "Start with Key Fob", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_ENHANCEMENT("MotoLink.StartWithKeyFob"))
+        .Options(CheckboxOptions().Tooltip(
+            "Gives adult Link the Key Fob when a save is loaded, on C-left, instead of finding it in the Lost "
+            "Woods chest behind the Skull Kid's stump."));
+    AddWidget(path, "Top Speed: %.2fx", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar("gMotoLink.Bike.TopSpeed")
+        .Options(FloatSliderOptions().Min(0.5f).Max(2.0f).DefaultValue(1.0f).Format("%.2fx").Tooltip(
+            "Multiplies the bike's top speed (1.00x is about 206 mph on the tachometer). A wheelie still raises it "
+            "by about 1.4x.\nVery high speeds may let the bike pass through thin walls."));
+    AddWidget(path, "Acceleration: %.2fx", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar("gMotoLink.Bike.Accel")
+        .Options(FloatSliderOptions().Min(0.25f).Max(3.0f).DefaultValue(1.0f).Format("%.2fx").Tooltip(
+            "Multiplies how quickly the bike gets up to its top speed."));
+    AddWidget(path, "Wheelie Angle: %.0f degrees", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar("gMotoLink.Wheelie.Angle")
+        .Options(FloatSliderOptions().Min(10.0f).Max(80.0f).DefaultValue(40.0f).Format("%.0f degrees").Tooltip(
+            "How far the front wheel lifts in a wheelie (stick back while on the throttle)."));
+
+    path.column = SECTION_COLUMN_2;
+    AddWidget(path, "Crashes", WIDGET_SEPARATOR_TEXT);
+    AddWidget(path, "Crashes", WIDGET_CVAR_CHECKBOX)
+        .CVar("gMotoLink.Crash.Enabled")
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip(
+            "Hitting walls, trees and rocks hard throws Link off the bike, following Moto Racer's rules."));
+    AddWidget(path, "Crash Chance: %d%%", WIDGET_CVAR_SLIDER_INT)
+        .CVar("gMotoLink.Crash.Chance")
+        .PreFunc([](WidgetInfo& info) { info.isHidden = !CVarGetInteger("gMotoLink.Crash.Enabled", 1); })
+        .Options(IntSliderOptions().Min(0).Max(100).DefaultValue(25).Format("%d%%").Tooltip(
+            "Chance that a risky hit (an angled wall at speed, a tree, a jump into a wall) crashes the bike. "
+            "Head-on hits at high speed and wall hits in a wheelie always crash."));
+    AddWidget(path, "Fling Distance: %.2fx", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar("gMotoLink.Crash.Fling")
+        .PreFunc([](WidgetInfo& info) { info.isHidden = !CVarGetInteger("gMotoLink.Crash.Enabled", 1); })
+        .Options(FloatSliderOptions().Min(0.0f).Max(2.0f).DefaultValue(1.0f).Format("%.2fx").Tooltip(
+            "How far Link is thrown in a crash, relative to the bike's speed."));
+
+    path.column = SECTION_COLUMN_3;
+    AddWidget(path, "Camera & Sound", WIDGET_SEPARATOR_TEXT);
+    AddWidget(path, "Chase Camera", WIDGET_CVAR_CHECKBOX)
+        .CVar("gMotoLink.Camera.Chase")
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip(
+            "A Moto Racer-style camera behind the bike while riding. Off: the horse camera."));
+    AddWidget(path, "Camera Distance: %.0f", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar("gMotoLink.Camera.Back")
+        .PreFunc([](WidgetInfo& info) { info.isHidden = !CVarGetInteger("gMotoLink.Camera.Chase", 1); })
+        .Options(FloatSliderOptions().Min(100.0f).Max(320.0f).DefaultValue(172.0f).Format("%.0f"));
+    AddWidget(path, "Camera Height: %.0f", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar("gMotoLink.Camera.Height")
+        .PreFunc([](WidgetInfo& info) { info.isHidden = !CVarGetInteger("gMotoLink.Camera.Chase", 1); })
+        .Options(FloatSliderOptions().Min(30.0f).Max(180.0f).DefaultValue(80.0f).Format("%.0f"));
+    AddWidget(path, "Field of View: %.0f degrees", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar("gMotoLink.Camera.Fov")
+        .PreFunc([](WidgetInfo& info) { info.isHidden = !CVarGetInteger("gMotoLink.Camera.Chase", 1); })
+        .Options(FloatSliderOptions().Min(45.0f).Max(90.0f).DefaultValue(60.0f).Format("%.0f degrees"));
+    AddWidget(path, "Engine Volume: %.0f%%", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar("gMotoLink.Audio.Volume")
+        .Options(FloatSliderOptions().Min(0.0f).Max(2.0f).DefaultValue(1.0f).IsPercentage().Tooltip(
+            "Volume of the bike's engine, on top of the game's sound effects volume."));
 }
 
 } // namespace SohGui
