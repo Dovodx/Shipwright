@@ -35,7 +35,11 @@
 #include <cstdio>
 #include <cmath>
 #include <cstdlib>
+#ifdef _WIN32
+#include <process.h> // _exit
+#else
 #include <unistd.h>
+#endif
 #include <fstream>
 #include <sstream>
 #include <string>
