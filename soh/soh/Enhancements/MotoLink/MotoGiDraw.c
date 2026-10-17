@@ -70,7 +70,7 @@ void MotoLink_DrawGiKeyFob(PlayState* play, GetItemEntry* getItemEntry) {
     gSPSetGeometryMode(POLY_OPA_DISP++, G_CULL_BACK | G_SHADE);
     gSPMatrix(POLY_OPA_DISP++, MATRIX_NEWMTX(play->state.gfxCtx), G_MTX_MODELVIEW | G_MTX_LOAD);
     for (i = 0; i < ARRAY_COUNT(sFobBoxes); i++) {
-        gSPVertex(POLY_OPA_DISP++, sFobVtx[i], 24, 0);
+        gSPVertex(POLY_OPA_DISP++, (uintptr_t)sFobVtx[i], 24, 0);
         for (f = 0; f < 6; f++) {
             gSP2Triangles(POLY_OPA_DISP++, f * 4, f * 4 + 1, f * 4 + 2, 0, f * 4, f * 4 + 2, f * 4 + 3, 0);
         }
